@@ -277,6 +277,7 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:26px 0 40px;co
         <button class="btn" id="cFocus">Fullscreen</button>
         <button class="btn" id="cCompare">Compare</button>
         <button class="btn" id="cEmbed">Embed</button>
+        <button class="btn" id="cShare">Share</button>
         <button class="btn" id="cChange">Change</button>
       </div>
     </div>
@@ -325,7 +326,7 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:26px 0 40px;co
         <h3 id="vTitle" style="font-size:19px;line-height:1.3">—</h3>
         <div class="muted" id="vChan" style="font-size:14px;margin-top:5px"></div>
       </div>
-      <div class="acts"><button class="btn" id="vChange">Another video</button></div>
+      <div class="acts"><button class="btn pri" id="vShare">Share</button><button class="btn" id="vChange">Another video</button></div>
     </div>
     <div class="card big" style="margin-top:14px">
       <div class="lbl"><span class="dot"></span> Live views</div>
@@ -356,6 +357,7 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:26px 0 40px;co
       <div class="lbl" id="gapLbl">Pick two channels to compare</div>
       <div id="gapOdo"></div>
       <div class="eta" id="gapEta"></div>
+      <button class="btn" id="gShare" style="margin-top:14px;display:none">Share this battle</button>
       <canvas class="spark" id="gapSpark" style="margin-top:14px;height:90px"></canvas>
     </div>
   </div>
@@ -747,6 +749,9 @@ function updateVideo(){
   const a = hist.get('v:' + id) || []; a.push({ t: Date.now(), v }); if (a.length > 180) a.shift(); hist.set('v:' + id, a);
   spark($('#vSpark'), [a], ['#6C8CFF']);
 }
+$('#vShare').onclick = () => share(($('#vTitle').textContent || 'Video') + ' - live views');
+$('#cShare').onclick = () => share(($('#cName').textContent || 'Channel') + ' - live subscriber count');
+$('#gShare').onclick = () => share('Live subscriber battle');
 $('#vChange').onclick = () => { go('home'); setTimeout(() => $('#homeSearch input').focus(), 50); };
 function go(v){
   if (!VIEWS.includes(v)) v = 'home';
@@ -755,12 +760,28 @@ function go(v){
   S.view = v;
   VIEWS.forEach(x => $('#v-' + x).classList.toggle('on', x === v));
   document.querySelectorAll('[data-go]').forEach(a => a.classList.toggle('on', a.dataset.go === v));
-  if (('#' + v) !== location.hash) history.replaceState(null, '', '#' + v);
+  try { history.replaceState(null, '', urlFor(v)); } catch {}
   window.scrollTo(0, 0);
   if (v === 'counter') { if (!S.cur) S.cur = S.topIds[0]; openCounter(S.cur); }
   if (v === 'compare') renderSlots();
   if (v === 'embed') renderEmbedBuilder();
   tick(true);
+}
+// Shareable links: /v/<id>, /c/<channel>, /compare/<a>/<b> (live site only).
+function urlFor(v){
+  if (!Src.live) return '#' + v;
+  const E = encodeURIComponent;
+  if (v === 'counter' && S.cur) return '/c/' + E(S.cur);
+  if (v === 'video' && S.vid) return '/v/' + E(S.vid);
+  if (v === 'compare' && S.a && S.b) return '/compare/' + E(S.a) + '/' + E(S.b);
+  return '/#' + v;
+}
+async function share(title){
+  const url = location.origin + urlFor(S.view);
+  if (!Src.live) { toast('Sharing works on the live site'); return; }
+  try { if (navigator.share) { await navigator.share({ title, url }); return; } }
+  catch (e) { if (e && e.name === 'AbortError') return; }
+  copy(url);
 }
 document.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); go(a.dataset.go); } });
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v !== S.view) go(v); });
@@ -868,7 +889,7 @@ function renderSlots(){
     odos['s' + k.toUpperCase()] = null;
     if (!id || !latest.get(id)) {
       host.innerHTML = `<div class="muted" style="font-size:14px">Channel ${k.toUpperCase()}</div><div class="sbox" style="width:100%"></div>`;
-      searchBox(host.querySelector('.sbox'), pid => { S[k] = pid; renderSlots(); tick(true); });
+      searchBox(host.querySelector('.sbox'), pid => { S[k] = pid; renderSlots(); tick(true); try { history.replaceState(null, '', urlFor('compare')); } catch {} });
     } else {
       const r = latest.get(id).row;
       host.innerHTML = `<div class="av md"></div><div style="font-weight:600">${esc(r.title)}</div><div class="o"></div><div class="muted r" style="font-size:13px"></div><button class="btn" style="padding:6px 12px;font-size:13px">Change</button>`;
@@ -883,6 +904,7 @@ function updateCompare(){
   const A = latest.get(S.a)?.row, B = latest.get(S.b)?.row;
   if (odos.sA && A) { odos.sA.set(subsNow(S.a)); $('#slotA .r').textContent = signed(A.subsRate*86400) + ' / day'; }
   if (odos.sB && B) { odos.sB.set(subsNow(S.b)); $('#slotB .r').textContent = signed(B.subsRate*86400) + ' / day'; }
+  $('#gShare').style.display = A && B ? '' : 'none';
   if (!A || !B) { $('#gapLbl').textContent = 'Pick two channels to compare'; $('#gapOdo').textContent = ''; odos.gap.reset(); $('#gapEta').textContent = ''; return; }
   const a = subsNow(S.a), b = subsNow(S.b), lead = a >= b ? A : B, trail = a >= b ? B : A;
   const gap = Math.abs(a - b), gapRate = (a >= b ? 1 : -1) * (A.subsRate - B.subsRate);
@@ -909,7 +931,7 @@ function updateEmbedBuilder(){
   const metric = $('#eMetric').value, theme = $('#eTheme').value;
   if (!odos.prev) { $('#ePrev').innerHTML = overlayHTML(r, metric, theme); avatar($('#ePrev .av'), r); odos.prev = new Odometer($('#ePrev .o')); }
   odos.prev.set(metric === 'views' ? viewsNow(id) : subsNow(id));
-  const origin = Src.live ? location.origin + location.pathname : 'https://your-domain.com/';
+  const origin = Src.live ? location.origin + '/' : 'https://your-domain.com/';
   const url = `${origin}?embed=1&c=${encodeURIComponent(id)}&metric=${metric}&theme=${theme}`;
   if ($('#eUrl').textContent !== url) {
     $('#eUrl').textContent = url;
@@ -977,8 +999,20 @@ async function boot(){
   renderLB($('#lbTop'), S.topIds.map(id => latest.get(id).row));
   renderFeat();
   searchBox($('#homeSearch'), id => { S.cur = id; go('counter'); });
-  const start = params.get('a') ? 'compare' : params.get('c') ? 'counter' : (location.hash.slice(1) || 'home');
-  go(start);
+  const P = location.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+  let opened = false;
+  try {
+    if (P[0] === 'v' && P[1]) { const v = await Src.video('https://youtu.be/' + P[1]); ingestVideos([v]); openVideo(v.id); opened = true; }
+    else if (P[0] === 'c' && P[1]) { const r = await Src.resolve(P[1]); ingest([r]); S.cur = r.id; go('counter'); opened = true; }
+    else if (P[0] === 'compare' && P[1] && P[2]) {
+      const [a, b] = await Promise.all([Src.resolve(P[1]), Src.resolve(P[2])]);
+      ingest([a, b]); S.a = a.id; S.b = b.id; go('compare'); opened = true;
+    }
+  } catch (e) { console.warn(e); toast('That link could not be opened'); }
+  if (!opened) {
+    const start = params.get('a') ? 'compare' : params.get('c') ? 'counter' : (location.hash.slice(1) || 'home');
+    go(start);
+  }
   startTimer();
   window.addEventListener('resize', () => tick(true));
 }

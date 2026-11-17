@@ -468,6 +468,63 @@ async def setup(body: SetupIn):
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
+    import html as _html
+
+    def page(title: str = "", desc: str = "", image: str = "") -> HTMLResponse:
+        """index.html with link-preview tags (WhatsApp, X, Telegram) for shared links."""
+        doc = (FRONTEND_DIR / "index.html").read_text()
+        if title:
+            t, d = _html.escape(title), _html.escape(desc)
+            tags = (f"<title>{t}</title>\n<meta property=\"og:title\" content=\"{t}\">"
+                    f"\n<meta property=\"og:description\" content=\"{d}\">\n<meta name=\"description\" content=\"{d}\">"
+                    "\n<meta property=\"og:site_name\" content=\"CountPulse\">\n<meta name=\"twitter:card\" content=\"summary_large_image\">")
+            if image:
+                tags += f"\n<meta property=\"og:image\" content=\"{_html.escape(image)}\">"
+            doc = re.sub(r"<title>.*?</title>", lambda _: tags, doc, count=1, flags=re.S)
+        return HTMLResponse(doc)
+
     @app.get("/")
     async def index():
-        return FileResponse(FRONTEND_DIR / "index.html")
+        return page()
+
+    @app.get("/v/{vid}")
+    async def share_video(vid: str):
+        try:
+            if re.fullmatch(r"[\w-]{11}", vid) and YT_API_KEY:
+                if vid not in store.videos:
+                    await store.refresh_videos([vid])
+                v = store.videos.get(vid)
+                if v:
+                    return page(f"{v.title} - live view count", f"{v.views:,} views and counting. Watch it live on CountPulse.", v.thumb)
+        except Exception:
+            pass
+        return page()
+
+    @app.get("/c/{q}")
+    async def share_channel(q: str):
+        try:
+            if YT_API_KEY:
+                cid = await store.resolve(q)
+                if cid not in store.channels:
+                    await store.refresh([cid])
+                ch = store.channels.get(cid)
+                if ch:
+                    return page(f"{ch.title} live subscriber count", "Watch the subscriber count tick up live on CountPulse.", ch.thumb)
+        except Exception:
+            pass
+        return page()
+
+    @app.get("/compare/{a}/{b}")
+    async def share_compare(a: str, b: str):
+        try:
+            if YT_API_KEY:
+                ids = [await store.resolve(a), await store.resolve(b)]
+                missing = [i for i in ids if i not in store.channels]
+                if missing:
+                    await store.refresh(missing)
+                A, B = store.channels.get(ids[0]), store.channels.get(ids[1])
+                if A and B:
+                    return page(f"{A.title} vs {B.title} - live sub count", "Who is winning right now? Live subscriber battle on CountPulse.", A.thumb)
+        except Exception:
+            pass
+        return page()
