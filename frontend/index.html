@@ -32,7 +32,33 @@ nav a.on,nav a:hover{color:var(--text);background:var(--surface2)}
 .fmt{margin-left:6px;display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .fmt button{background:none;border:0;padding:6px 9px;font-size:12px;color:var(--muted);cursor:pointer}
 .fmt button.on{background:var(--surface2);color:var(--text)}
-@media(max-width:720px){nav{display:none}.fmt{margin-left:auto}}
+@media(max-width:720px){nav{display:none}}
+/* hamburger menu */
+.burger{margin-left:8px;width:44px;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;flex:none}
+.burger i{display:block;width:20px;height:2px;background:var(--text);border-radius:2px;transition:transform .25s,opacity .2s}
+.burger.on i:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.burger.on i:nth-child(2){opacity:0}
+.burger.on i:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+@media(max-width:720px){.burger{margin-left:auto}}
+.menu{position:absolute;left:0;right:0;top:100%;background:rgba(10,12,17,.97);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border);max-height:0;overflow:hidden;transition:max-height .3s ease}
+.menu.on{max-height:calc(100vh - 60px);overflow-y:auto}
+.menu .wrap{padding:6px 18px 24px}
+.mi{display:flex;align-items:center;justify-content:space-between;width:100%;padding:16px 4px;border:0;border-bottom:1px solid var(--border);background:none;font-size:17px;font-weight:500;color:var(--text);cursor:pointer;text-align:left;text-decoration:none}
+.mi .chev{width:18px;height:18px;color:var(--muted);transition:transform .2s}
+.mi.open .chev{transform:rotate(180deg)}
+.sub{display:none;padding:6px 0 10px;border-bottom:1px solid var(--border)}
+.sub.on{display:block}
+.sub .grp{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);padding:10px 10px 4px}
+.sub a{display:flex;align-items:center;gap:12px;padding:11px 10px;border-radius:10px;font-size:15px;color:var(--text);cursor:pointer;text-decoration:none}
+.sub a:hover{background:var(--surface2)}
+.sub a svg{width:20px;height:20px;flex:none;color:var(--accent2)}
+.sub a.soon{color:var(--dim);cursor:default}
+.sub a.soon:hover{background:none}
+.sub a.soon svg{color:var(--dim)}
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);color:var(--muted);margin-left:auto;white-space:nowrap}
+.badge.live{color:var(--up);border-color:rgba(46,230,168,.4)}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 4px;border-bottom:1px solid var(--border);font-size:17px;font-weight:500}
+.mfoot{padding:16px 4px 0;font-size:13px;color:var(--dim);line-height:1.6}
 .tabbar{display:none}
 @media(max-width:720px){
   .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:30;background:rgba(18,22,31,.96);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
@@ -219,8 +245,23 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:26px 0 40px;co
     <nav>
       <a data-go="home">Home</a><a data-go="top">Top channels</a><a data-go="compare">Compare</a><a data-go="embed">Embed</a>
     </nav>
-    <div class="fmt" title="Number format">
-      <button data-fmt="intl">1,234,567</button><button data-fmt="in">12,34,567</button>
+    <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><i></i><i></i><i></i></button>
+  </div>
+  <div class="menu" id="menu">
+    <div class="wrap">
+      <button class="mi open" id="mCounters">Counters <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></button>
+      <div class="sub on" id="mSub">
+        <div class="grp">YouTube</div>
+        <a data-act="subs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M17 8v6M14 11h6"/></svg>YouTube Live Subscriber Counter<span class="badge live">Live</span></a>
+        <a data-act="views"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>YouTube Live View Counter<span class="badge live">Live</span></a>
+        <a data-act="compare"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 4v16M17 4v16M3 8h8M13 16h8"/></svg>YouTube Channel Compare<span class="badge live">Live</span></a>
+        <a data-act="top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Top YouTube Channels<span class="badge live">Live</span></a>
+        <a data-act="embed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>Stream Overlay &amp; Embed<span class="badge live">Live</span></a>
+        <div class="grp">Coming soon</div>
+        <a class="soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>TikTok Live Follower Counter<span class="badge">Soon</span></a><a class="soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>TikTok Video Live View Counter<span class="badge">Soon</span></a><a class="soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>X (Twitter) Live Follower Counter<span class="badge">Soon</span></a><a class="soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>Twitch Live Follower Counter<span class="badge">Soon</span></a><a class="soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>Kick Live Follower Counter<span class="badge">Soon</span></a><a class="soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>Instagram Live Follower Counter<span class="badge">Soon</span></a>
+      </div>
+      <div class="mrow">Number format <span class="seg"><button data-fmt="intl">1,234,567</button><button data-fmt="in">12,34,567</button></span></div>
+      <div class="mfoot">CountPulse is ad-free. Subscriber counts are estimates within YouTube's rounding; view counts come from the YouTube Data API.</div>
     </div>
   </div>
 </header>
@@ -756,6 +797,7 @@ $('#vChange').onclick = () => { go('home'); setTimeout(() => $('#homeSearch inpu
 function go(v){
   if (!VIEWS.includes(v)) v = 'home';
   if (v === 'video' && !S.vid) v = 'home';
+  setMenu(false);
   if (v !== 'counter' && document.body.classList.contains('focus')) exitFocus();
   S.view = v;
   VIEWS.forEach(x => $('#v-' + x).classList.toggle('on', x === v));
@@ -790,6 +832,24 @@ function syncFmt(){ document.querySelectorAll('[data-fmt]').forEach(b => b.class
 
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1800); }
 async function copy(text){ try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Select the text and copy it'); } }
+
+/* ---------------- hamburger menu ---------------- */
+function setMenu(on){
+  const m = document.getElementById('menu'), b = document.getElementById('burger'); if (!m) return;
+  m.classList.toggle('on', on); b.classList.toggle('on', on); b.setAttribute('aria-expanded', on);
+}
+$('#burger').onclick = e => { e.stopPropagation(); setMenu(!$('#menu').classList.contains('on')); };
+document.addEventListener('click', e => { if ($('#menu').classList.contains('on') && !e.target.closest('#menu, #burger')) setMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+$('#mCounters').onclick = () => { $('#mCounters').classList.toggle('open'); $('#mSub').classList.toggle('on'); };
+document.querySelectorAll('#menu [data-act]').forEach(a => a.onclick = e => {
+  e.preventDefault(); setMenu(false);
+  const k = a.dataset.act;
+  if (k === 'subs' || k === 'views') {
+    go('home');
+    setTimeout(() => { const i = $('#homeSearch input'); i.placeholder = k === 'views' ? 'Paste a YouTube video link' : 'Channel name, @handle or URL'; i.focus(); }, 80);
+  } else go(k);
+});
 
 /* ---------------- views ---------------- */
 const odos = {
