@@ -4,6 +4,8 @@ services:
     restart: unless-stopped
     env_file: .env
     expose: ["8000"]
+    volumes:
+      - appdata:/data
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -15,4 +17,5 @@ services:
       - caddy_data:/data
     depends_on: [app]
 volumes:
+  appdata:
   caddy_data:

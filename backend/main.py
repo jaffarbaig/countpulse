@@ -25,13 +25,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+import hmac
+
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
+# The API key comes from the env, or from KEY_FILE once set through the /setup page.
+KEY_FILE = Path(os.getenv("KEY_FILE", "/data/yt_key"))
+SETUP_CODE = os.getenv("SETUP_CODE", "")
 YT_API_KEY = os.getenv("YT_API_KEY", "")
+if not YT_API_KEY and KEY_FILE.exists():
+    YT_API_KEY = KEY_FILE.read_text().strip()
 YT_BASE = os.getenv("YT_BASE", "https://www.googleapis.com/youtube/v3")
 POLL_SECONDS = float(os.getenv("POLL_SECONDS", "30"))
 ACTIVE_WINDOW = float(os.getenv("ACTIVE_WINDOW", "600"))  # keep polling 10 min after last view
@@ -364,6 +372,67 @@ async def videos(ids: str = Query(..., max_length=700)):
             v.last_seen = now
             out.append(v.to_json(now))
     return {"items": out}
+
+
+# ----------------------------------------------------------------------------
+# One-time setup page: paste the YouTube key in a browser instead of a terminal.
+# Protected by the 6-digit SETUP_CODE printed by deploy.sh; disabled once a key is set.
+# ----------------------------------------------------------------------------
+_setup_failures = 0
+
+SETUP_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CountPulse setup</title><style>
+body{font-family:system-ui,sans-serif;background:#0A0C11;color:#ECEFF6;display:grid;place-items:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box}
+.c{background:#12161F;border:1px solid #232A3A;border-radius:16px;padding:24px;max-width:420px;width:100%}
+h1{font-size:22px;margin:0 0 6px}p{color:#8A93A8;font-size:14px;line-height:1.5}
+label{display:block;font-size:13px;color:#8A93A8;margin:14px 0 6px}
+input{width:100%;box-sizing:border-box;padding:13px;border-radius:10px;border:1px solid #232A3A;background:#181D29;color:#fff;font-size:16px}
+button{margin-top:18px;width:100%;padding:14px;border:0;border-radius:12px;font-size:16px;font-weight:600;color:#fff;background:linear-gradient(135deg,#FF4D5E,#FF8A3D)}
+#m{margin-top:14px;font-size:14px;min-height:20px}</style></head><body><div class="c">
+<h1>CountPulse setup</h1><p>Paste your YouTube Data API key. The 6-digit setup code is shown in your VPS terminal.</p>
+<form id="f"><label>Setup code</label><input id="code" inputmode="numeric" autocomplete="off" maxlength="6">
+<label>YouTube API key</label><input id="key" autocomplete="off" spellcheck="false">
+<button>Save &amp; go live</button><div id="m"></div></form></div><script>
+document.getElementById('f').onsubmit=async e=>{e.preventDefault();const m=document.getElementById('m');m.style.color='#8A93A8';m.textContent='Checking key with YouTube…';
+const r=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('code').value.trim(),key:document.getElementById('key').value.trim()})});
+const d=await r.json().catch(()=>({}));if(r.ok){m.style.color='#2EE6A8';m.textContent='Done! Opening CountPulse…';setTimeout(()=>location.href='/',1500)}else{m.style.color='#FF6B6B';m.textContent=d.detail||'Something went wrong'}}
+</script></body></html>"""
+
+
+class SetupIn(BaseModel):
+    code: str
+    key: str
+
+
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page():
+    if YT_API_KEY:
+        return HTMLResponse("<meta name=viewport content='width=device-width'><body style='font-family:system-ui;background:#0A0C11;color:#ECEFF6;padding:40px'>CountPulse is already set up. <a style='color:#FF8A3D' href='/'>Open it</a></body>")
+    return SETUP_HTML
+
+
+@app.post("/api/setup")
+async def setup(body: SetupIn):
+    global YT_API_KEY, _setup_failures
+    if YT_API_KEY:
+        raise HTTPException(409, "Already set up")
+    if not SETUP_CODE or _setup_failures >= 10:
+        raise HTTPException(403, "Setup is locked. Re-run deploy.sh on the VPS for a new code.")
+    if not hmac.compare_digest(body.code, SETUP_CODE):
+        _setup_failures += 1
+        raise HTTPException(403, "Wrong setup code")
+    key = body.key.strip()
+    if not re.fullmatch(r"[\w-]{20,60}", key):
+        raise HTTPException(400, "That doesn't look like an API key")
+    r = await store.client.get(f"{YT_BASE}/channels", params={"part": "id", "id": FEATURED[0], "key": key}, timeout=10)
+    if r.status_code != 200:
+        raise HTTPException(400, "YouTube rejected this key. Check that YouTube Data API v3 is enabled for it.")
+    KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    KEY_FILE.write_text(key)
+    KEY_FILE.chmod(0o600)
+    YT_API_KEY = key
+    await store.refresh(FEATURED)
+    return {"ok": True}
 
 
 # Serve the frontend from the same origin (so the app is one deploy).

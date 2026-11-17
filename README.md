@@ -38,8 +38,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 Without a key (or when opened as a plain file), the front end runs in **demo mode** with simulated numbers.
 
-## Deploy
-Any host that runs Python works: Render, Railway, AWS App Runner, a GCP Cloud Run container, or an EC2/Lightsail VM.
+## Deploy (Hostinger VPS / any Ubuntu server)
+Type this in the VPS terminal (no pasting needed):
+```
+git clone https://github.com/jaffarbaig/countpulse && bash countpulse/deploy.sh
+```
+It prints a 6-digit setup code and installs in the background. After 3–5 minutes, open `https://<domain>/setup`, enter the code and paste your YouTube API key. Progress: `tail /root/deploy.log`.
+
+Other hosts: any host that runs Python works: Render, Railway, AWS App Runner, a GCP Cloud Run container, or an EC2/Lightsail VM.
 ```bash
 docker build -t countpulse . && docker run -p 8000:8000 -e YT_API_KEY=xxx countpulse
 ```

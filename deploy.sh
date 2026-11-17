@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # One-command deploy for a fresh Ubuntu/Debian VPS (e.g. Hostinger KVM).
-# Usage:  DOMAIN=countpulse.example.com YT_API_KEY=xxxx bash deploy.sh
+#
+# Easiest (type this on the VPS):
+#   git clone https://github.com/jaffarbaig/countpulse && bash countpulse/deploy.sh
+# Then open https://<domain>/setup and paste your YouTube API key with the code it prints.
+#
+# Optional env: DOMAIN (default countpulse.oneclikai.in), YT_API_KEY (skips the /setup page).
 # Point the domain's A record at this VPS's IP first; Caddy then gets HTTPS automatically.
 set -euo pipefail
-: "${DOMAIN:?Set DOMAIN, e.g. DOMAIN=countpulse.oneclikai.in}"
-: "${YT_API_KEY:?Set YT_API_KEY (YouTube Data API v3 key)}"
+DOMAIN="${DOMAIN:-countpulse.oneclikai.in}"
 REPO="${REPO:-https://github.com/jaffarbaig/countpulse.git}"
-DIR=/opt/countpulse
+
+# Use the folder this script lives in if it's a git checkout, else clone to /opt/countpulse.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -d "$HERE/.git" ]; then DIR="$HERE"; else DIR=/opt/countpulse; fi
+LOG=/root/deploy.log
 
 # Safety check: don't fight an existing web server for ports 80/443.
 if ss -tlnp | grep -qE ':(80|443)\s'; then
@@ -18,16 +26,35 @@ if ss -tlnp | grep -qE ':(80|443)\s'; then
   fi
 fi
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y && apt-get install -y git curl
-command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
+# Keep an existing .env (and its key/code) on re-runs.
+if [ -f "$DIR/.env" ]; then
+  CODE="$(grep -oP '^SETUP_CODE=\K.*' "$DIR/.env" || true)"
+else
+  CODE="$(shuf -i 100000-999999 -n 1)"
+fi
 
-if [ -d "$DIR/.git" ]; then git -C "$DIR" pull --ff-only; else git clone --depth 1 "$REPO" "$DIR"; fi
-cd "$DIR"
-printf 'DOMAIN=%s\nYT_API_KEY=%s\nPOLL_SECONDS=30\n' "$DOMAIN" "$YT_API_KEY" > .env
-chmod 600 .env
-docker compose up -d --build
+install() {
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -y && apt-get install -y git curl
+  command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
+  if [ -d "$DIR/.git" ]; then git -C "$DIR" pull --ff-only; else git clone --depth 1 "$REPO" "$DIR"; fi
+  cd "$DIR"
+  if [ ! -f .env ]; then
+    printf 'DOMAIN=%s\nSETUP_CODE=%s\nYT_API_KEY=%s\nPOLL_SECONDS=30\n' "$DOMAIN" "$CODE" "${YT_API_KEY:-}" > .env
+    chmod 600 .env
+  fi
+  docker compose up -d --build
+  echo
+  echo "DONE. CountPulse is running at https://$DOMAIN"
+  echo "First time? Open https://$DOMAIN/setup  (setup code: $CODE)"
+}
 
-echo
-echo "CountPulse is starting at https://$DOMAIN (HTTPS can take a minute on first run)."
-echo "Logs: cd $DIR && docker compose logs -f"
+# Run the slow part in the background so a dropped terminal can't kill it.
+nohup bash -c "set -e; $(declare -f install); DIR='$DIR' DOMAIN='$DOMAIN' REPO='$REPO' CODE='$CODE' YT_API_KEY='${YT_API_KEY:-}' install" > "$LOG" 2>&1 &
+
+echo "=============================================="
+echo " Installing CountPulse in the background (3-5 min)."
+echo " Your setup code:  $CODE"
+echo " When done, open:  https://$DOMAIN/setup"
+echo " Check progress:   tail $LOG"
+echo "=============================================="
