@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CountPulse — Live YouTube Subscriber Counter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0C11;--surface:#12161F;--surface2:#181D29;--border:#232A3A;
+  --text:#ECEFF6;--muted:#8A93A8;--dim:#5B6378;
+  --accent:#FF4D5E;--accent2:#FF8A3D;--up:#2EE6A8;--down:#FF6B6B;
+  --radius:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh}
+a{color:inherit}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:0 18px}
+
+/* header */
+header{position:sticky;top:0;z-index:20;background:rgba(10,12,17,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.hbar{display:flex;align-items:center;gap:14px;height:60px}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:19px;letter-spacing:-.02em;cursor:pointer;user-select:none}
+.logo svg{width:28px;height:28px}
+nav{display:flex;gap:4px;margin-left:auto}
+nav a{padding:8px 12px;border-radius:10px;text-decoration:none;color:var(--muted);font-size:14px;font-weight:500;cursor:pointer}
+nav a.on,nav a:hover{color:var(--text);background:var(--surface2)}
+.fmt{margin-left:6px;display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.fmt button{background:none;border:0;padding:6px 9px;font-size:12px;color:var(--muted);cursor:pointer}
+.fmt button.on{background:var(--surface2);color:var(--text)}
+@media(max-width:720px){nav{display:none}.fmt{margin-left:auto}}
+.tabbar{display:none}
+@media(max-width:720px){
+  .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:30;background:rgba(18,22,31,.96);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .tabbar a{flex:1;text-align:center;font-size:11px;color:var(--muted);text-decoration:none;padding:6px 0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .tabbar a svg{width:20px;height:20px}
+  .tabbar a.on{color:var(--text)}
+  body{padding-bottom:70px}
+}
+
+.banner{font-size:12.5px;color:var(--muted);text-align:center;padding:7px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.banner b{color:var(--accent2);font-weight:600}
+
+/* generic */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 0 0 rgba(46,230,168,.6);animation:ping 1.8s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(46,230,168,.55)}70%{box-shadow:0 0 0 8px rgba(46,230,168,0)}100%{box-shadow:0 0 0 0 rgba(46,230,168,0)}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-weight:500;font-size:14px;transition:.15s}
+.btn:hover{border-color:#36405a}
+.btn.pri{background:linear-gradient(135deg,var(--accent),var(--accent2));border:0;color:#fff}
+.muted{color:var(--muted)}
+.section{padding:28px 0}
+h2{font-size:20px;letter-spacing:-.02em;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.view{display:none}.view.on{display:block}
+
+/* search */
+.search{position:relative;max-width:640px;margin:0 auto}
+.search input{width:100%;padding:16px 120px 16px 48px;border-radius:14px;border:1px solid var(--border);background:var(--surface);font-size:16px;outline:none;transition:.15s}
+.search input:focus{border-color:var(--accent)}
+.search .ico{position:absolute;left:16px;top:17px;width:20px;height:20px;color:var(--muted)}
+.search .go{position:absolute;right:7px;top:7px;height:39px;padding:0 18px}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:15;display:none;padding:6px}
+.sugg.on{display:block}
+.sugg .it{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer}
+.sugg .it:hover{background:var(--surface2)}
+.err{color:var(--down);font-size:13px;text-align:center;margin-top:8px}
+.err:empty{display:none}
+
+/* hero */
+.hero{text-align:center;padding:54px 0 30px}
+.hero h1{font-size:clamp(32px,6vw,56px);line-height:1.02;letter-spacing:-.04em;font-weight:700;margin:14px 0 12px}
+.hero h1 span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--muted);font-size:16px;max-width:520px;margin:0 auto 26px}
+.plats{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:18px}
+.plats .pill.live{color:var(--text);border-color:rgba(255,77,94,.5)}
+
+/* avatar */
+.av{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:16px;color:#fff;overflow:hidden;background:#333}
+.av img{width:100%;height:100%;object-fit:cover}
+.av.lg{width:84px;height:84px;font-size:30px}
+.av.md{width:56px;height:56px;font-size:20px}
+
+/* odometer */
+.odo{display:inline-flex;align-items:flex-start;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.odo .c{display:inline-block;height:1.1em;overflow:hidden;position:relative}
+.odo .s{display:flex;flex-direction:column;transition:transform 1.4s cubic-bezier(.2,.75,.25,1)}
+.odo .s span{height:1.1em;line-height:1.1em;text-align:center;width:.62em}
+.odo .sep{height:1.1em;line-height:1.1em;width:.28em;text-align:center;color:var(--dim)}
+.odo.noanim .s{transition:none}
+
+/* feature compare */
+.feat{padding:22px;display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;cursor:pointer;transition:.15s}
+.feat:hover{border-color:#36405a}
+.feat .side{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;min-width:0}
+.feat .side .odo{font-size:clamp(17px,3vw,26px)}
+.feat .vs{display:flex;flex-direction:column;align-items:center;gap:6px}
+.feat .vs .odo{font-size:clamp(15px,2.5vw,20px);color:var(--accent2)}
+.feat .name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+@media(max-width:560px){.feat{grid-template-columns:1fr;}.feat .vs{order:3}}
+
+/* leaderboard */
+.lb{overflow:hidden}
+.lb .row{display:grid;grid-template-columns:32px 44px 1fr auto;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--border);cursor:pointer;transition:.12s}
+.lb .row:first-child{border-top:0}
+.lb .row:hover{background:var(--surface2)}
+.lb .rk{color:var(--dim);font-weight:600;text-align:center}
+.lb .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb .sub{font-size:12px;color:var(--muted)}
+.lb .odo{font-size:18px}
+.lb .rate{font-size:12px;color:var(--up);text-align:right}
+@media(max-width:560px){.lb .row{grid-template-columns:22px 40px 1fr;}.lb .row .r{grid-column:2 / -1;justify-self:start;margin-top:-4px}.lb .rate{text-align:left}}
+
+/* counter */
+.chead{display:flex;align-items:center;gap:16px;padding:22px}
+.chead h3{font-size:22px;letter-spacing:-.02em}
+.chead .acts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:640px){.chead{flex-wrap:wrap}.chead .acts{margin-left:0;width:100%}.chead .acts .btn{flex:1}}
+.big{padding:34px 22px 26px;text-align:center}
+.big .lbl{font-size:13px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin-bottom:14px;display:flex;justify-content:center;gap:10px;align-items:center}
+.big .odo{font-size:clamp(40px,10.5vw,104px)}
+.big .meta{margin-top:16px;color:var(--muted);font-size:14px;display:flex;justify-content:center;gap:18px;flex-wrap:wrap}
+.big .meta b{color:var(--up);font-weight:600}
+.est{cursor:help;border-bottom:1px dashed var(--dim)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+.stat{padding:20px}
+.stat .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:10px}
+.stat .odo{font-size:clamp(24px,4.4vw,36px)}
+.stat .small{font-size:13px;color:var(--muted);margin-top:8px}
+.bar{height:10px;border-radius:99px;background:var(--surface2);overflow:hidden;margin:12px 0 8px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width 1.2s}
+canvas.spark{width:100%;height:120px;display:block}
+.note{font-size:12.5px;color:var(--dim);margin-top:12px;line-height:1.5}
+
+/* compare */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:720px){.cmp{grid-template-columns:1fr}}
+.slot{padding:22px;text-align:center;min-height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.slot .odo{font-size:clamp(28px,5.5vw,48px)}
+.slot .search input{padding:13px 14px 13px 40px;font-size:15px}
+.slot .search .ico{left:13px;top:14px;width:18px}
+.gap{padding:26px 22px;text-align:center;margin-top:14px}
+.gap .odo{font-size:clamp(34px,7vw,64px);color:var(--accent2)}
+.gap .lbl{color:var(--muted);font-size:14px;margin-bottom:10px}
+.gap .eta{margin-top:12px;font-size:14px;color:var(--muted)}
+.gap .eta b{color:var(--text)}
+
+/* embed */
+.emb{padding:22px}
+.emb label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+.emb select{width:100%;padding:11px 12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);outline:none}
+.emb .opts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:640px){.emb .opts{grid-template-columns:1fr}}
+.code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#07090D;border:1px solid var(--border);border-radius:10px;padding:12px;word-break:break-all;color:#C8D0E0;margin:6px 0 10px}
+.prev{border-radius:12px;border:1px dashed var(--border);padding:26px;display:grid;place-items:center;margin-bottom:16px;background-image:linear-gradient(45deg,#11141b 25%,transparent 25%),linear-gradient(-45deg,#11141b 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#11141b 75%),linear-gradient(-45deg,transparent 75%,#11141b 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}
+
+/* embed-mode overlay */
+.ov{display:inline-flex;align-items:center;gap:14px;padding:14px 20px;border-radius:16px}
+.ov.dark{background:#0E1118;border:1px solid #252c3d}
+.ov.light{background:#fff;color:#111;border:1px solid #e5e7eb}
+.ov.light .odo .sep{color:#9aa}
+.ov.clear{background:transparent;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+.ov .t{font-size:13px;opacity:.75;margin-bottom:2px;font-weight:500}
+.ov .odo{font-size:38px}
+body.embed header,body.embed .banner,body.embed footer,body.embed .tabbar{display:none}
+body.embed{background:transparent;padding:0}
+body.embed .view{display:none!important}
+#embedRoot{display:none}
+body.embed #embedRoot{display:block;padding:10px}
+
+/* v1.1 additions */
+.star{font-size:18px;line-height:1;padding:10px 14px}
+.star.on{color:#FFC94D;border-color:rgba(255,201,77,.5)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.seg button{background:none;border:0;padding:7px 12px;font-size:13px;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--surface2);color:var(--text)}
+.speed{margin-top:16px;display:flex;justify-content:center;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.proj{width:100%;border-collapse:collapse;font-size:14px}
+.proj td{padding:9px 0;border-top:1px solid var(--border)}
+.proj tr:first-child td{border-top:0}
+.proj td:nth-child(2){text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.proj td:nth-child(3){text-align:right;color:var(--up);width:90px;font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+@media(max-width:720px){.grid3{grid-template-columns:1fr}}
+.vthumb{width:160px;aspect-ratio:16/9;border-radius:10px;flex:none;overflow:hidden;display:grid;place-items:center;background:linear-gradient(135deg,#2a3148,#151a26);color:var(--muted)}
+.vthumb img{width:100%;height:100%;object-fit:cover}
+@media(max-width:640px){.vthumb{width:100%}}
+.hint{font-size:13px;color:var(--muted);margin-top:12px}
+.hint a{color:var(--accent2);cursor:pointer;text-decoration:underline}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:60;width:100%;height:100%}
+.celebrate{position:fixed;left:50%;top:22%;transform:translate(-50%,-10px) scale(.9);z-index:61;background:var(--surface);border:1px solid rgba(255,201,77,.5);padding:16px 24px;border-radius:16px;text-align:center;opacity:0;pointer-events:none;transition:.35s}
+.celebrate.on{opacity:1;transform:translate(-50%,0) scale(1)}
+.celebrate b{display:block;font-size:26px;color:#FFC94D;margin-top:4px}
+body.focus header,body.focus .banner,body.focus footer,body.focus .tabbar,body.focus .chead,body.focus #v-counter .grid2,body.focus #v-counter .xtra,body.focus .speed{display:none!important}
+body.focus #v-counter .big{border:0;background:transparent;min-height:calc(100vh - 60px);display:flex;flex-direction:column;justify-content:center}
+body.focus #v-counter .big .odo{font-size:clamp(46px,13vw,180px)}
+.focusx{display:none;position:fixed;top:14px;right:14px;z-index:40}
+body.focus .focusx{display:inline-flex}
+body.focus .focusname{display:block!important}
+
+footer{border-top:1px solid var(--border);margin-top:40px;padding:26px 0 40px;color:var(--dim);font-size:12.5px;line-height:1.6}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:50}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="banner" id="banner"><b>Demo mode</b> · simulated numbers. Deploy the backend with a YouTube API key for live data.</div>
+<header>
+  <div class="wrap hbar">
+    <div class="logo" data-go="home">
+      <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="9" fill="url(#lg)"/><path d="M5 17h5l2.5-6 4 12 3-9 2 3H27" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="lg" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#FF4D5E"/><stop offset="1" stop-color="#FF8A3D"/></linearGradient></defs></svg>
+      CountPulse
+    </div>
+    <nav>
+      <a data-go="home">Home</a><a data-go="top">Top channels</a><a data-go="compare">Compare</a><a data-go="embed">Embed</a>
+    </nav>
+    <div class="fmt" title="Number format">
+      <button data-fmt="intl">1,234,567</button><button data-fmt="in">12,34,567</button>
+    </div>
+  </div>
+</header>
+
+<!-- HOME -->
+<main class="view" id="v-home">
+  <div class="wrap">
+    <section class="hero">
+      <span class="pill"><span class="dot"></span> Updates every 2 seconds</span>
+      <h1>Watch any channel grow<br><span>in real time.</span></h1>
+      <p>Live subscriber and view counts for any YouTube channel. Compare rivals, count down milestones, and drop a live counter into your stream.</p>
+      <div class="search" id="homeSearch"></div>
+      <div class="hint">Works with channel names, @handles, channel links <i>and video links</i>.<span id="demoHint"> · <a id="msDemo">Watch a channel hit 1M live</a></span></div>
+      <div class="plats">
+        <span class="pill live">● YouTube</span><span class="pill">TikTok · soon</span><span class="pill">X · soon</span><span class="pill">Twitch · soon</span><span class="pill">Instagram · soon</span>
+      </div>
+    </section>
+    <section class="section" id="favSec" style="display:none">
+      <h2>★ Your favourites</h2>
+      <div class="card lb" id="lbFav"></div>
+    </section>
+    <section class="section">
+      <h2>Featured battle</h2>
+      <div class="card feat" id="feat"></div>
+    </section>
+    <section class="section">
+      <h2>Top channels <span class="pill"><span class="dot"></span> live</span></h2>
+      <div class="card lb" id="lbHome"></div>
+    </section>
+  </div>
+</main>
+
+<!-- TOP -->
+<main class="view" id="v-top">
+  <div class="wrap section">
+    <h2 style="flex-wrap:wrap">Top channels <span class="pill"><span class="dot"></span> live</span>
+      <span class="seg" style="margin-left:auto"><button data-sort="subs" class="on">Most subscribers</button><button data-sort="rate">Fastest growing</button></span></h2>
+    <div class="card lb" id="lbTop"></div>
+    <p class="note" id="topNote">Ranked by estimated live subscribers. Tap a channel to open its counter.</p>
+  </div>
+</main>
+
+<!-- COUNTER -->
+<main class="view" id="v-counter">
+  <div class="wrap section">
+    <div class="card chead">
+      <div class="av lg" id="cAv"></div>
+      <div style="min-width:0">
+        <h3 id="cName">—</h3>
+        <div class="muted" id="cHandle" style="font-size:14px;margin-top:3px"></div>
+      </div>
+      <div class="acts">
+        <button class="btn star" id="cStar" title="Add to favourites">☆</button>
+        <button class="btn" id="cFocus">Fullscreen</button>
+        <button class="btn" id="cCompare">Compare</button>
+        <button class="btn" id="cEmbed">Embed</button>
+        <button class="btn" id="cChange">Change</button>
+      </div>
+    </div>
+    <button class="btn focusx" id="focusX">✕ Exit</button>
+    <div class="card big" style="margin-top:14px">
+      <div class="focusname" id="cFocusName" style="display:none;font-size:clamp(20px,3vw,32px);font-weight:600;margin-bottom:18px"></div>
+      <div class="lbl"><span class="dot"></span> <span>Subscribers</span> <span class="est" id="cEstTag" title="">estimated</span></div>
+      <div id="cSubs"></div>
+      <div class="meta"><span><b id="cRateSec">+0</b> / sec</span><span><b id="cRateDay">+0</b> / day</span><span id="cSession">+0 since you opened this</span></div>
+      <div class="speed">Update every <span class="seg"><button data-speed="2000">2s</button><button data-speed="5000">5s</button><button data-speed="10000">10s</button></span></div>
+    </div>
+    <div class="grid2">
+      <div class="card stat">
+        <div class="lbl">Total views</div>
+        <div id="cViews"></div>
+        <div class="small" id="cViewsRate"></div>
+      </div>
+      <div class="card stat">
+        <div class="lbl">Next milestone</div>
+        <div style="font-size:26px;font-weight:700" id="cMs">—</div>
+        <div class="bar"><i id="cMsBar" style="width:0"></i></div>
+        <div class="small" id="cMsEta"></div>
+      </div>
+    </div>
+    <div class="grid2 xtra">
+      <div class="card stat">
+        <div class="lbl">Live trend · this session</div>
+        <canvas class="spark" id="cSpark"></canvas>
+        <p class="note" id="cNote"></p>
+      </div>
+      <div class="card stat">
+        <div class="lbl">Future projection</div>
+        <table class="proj" id="cProj"></table>
+        <p class="note">At the current growth rate. Real growth changes with uploads.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- VIDEO -->
+<main class="view" id="v-video">
+  <div class="wrap section">
+    <div class="card chead">
+      <div class="vthumb" id="vThumb">▶</div>
+      <div style="min-width:0">
+        <h3 id="vTitle" style="font-size:19px;line-height:1.3">—</h3>
+        <div class="muted" id="vChan" style="font-size:14px;margin-top:5px"></div>
+      </div>
+      <div class="acts"><button class="btn" id="vChange">Another video</button></div>
+    </div>
+    <div class="card big" style="margin-top:14px">
+      <div class="lbl"><span class="dot"></span> Live views</div>
+      <div id="vViews"></div>
+      <div class="meta"><span><b id="vRateMin">+0</b> / min</span><span><b id="vRateHr">+0</b> / hour</span><span id="vSession">+0 since you opened this</span></div>
+    </div>
+    <div class="grid3">
+      <div class="card stat"><div class="lbl">Likes</div><div id="vLikes"></div><div class="small" id="vLikeRatio"></div></div>
+      <div class="card stat"><div class="lbl">Comments</div><div id="vComments"></div><div class="small" id="vComRate"></div></div>
+      <div class="card stat"><div class="lbl">Views in 24 h (projected)</div><div style="font-size:28px;font-weight:700" id="vProj">—</div><div class="small">at the current pace</div></div>
+    </div>
+    <div class="card stat" style="margin-top:14px">
+      <div class="lbl">Views · this session</div>
+      <canvas class="spark" id="vSpark"></canvas>
+    </div>
+  </div>
+</main>
+
+<!-- COMPARE -->
+<main class="view" id="v-compare">
+  <div class="wrap section">
+    <h2>Compare</h2>
+    <div class="cmp">
+      <div class="card slot" id="slotA"></div>
+      <div class="card slot" id="slotB"></div>
+    </div>
+    <div class="card gap" id="gapCard">
+      <div class="lbl" id="gapLbl">Pick two channels to compare</div>
+      <div id="gapOdo"></div>
+      <div class="eta" id="gapEta"></div>
+      <canvas class="spark" id="gapSpark" style="margin-top:14px;height:90px"></canvas>
+    </div>
+  </div>
+</main>
+
+<!-- EMBED -->
+<main class="view" id="v-embed">
+  <div class="wrap section">
+    <h2>Embed &amp; stream overlay</h2>
+    <div class="card emb">
+      <div class="opts">
+        <div><label>Channel</label><select id="eCh"></select></div>
+        <div><label>Metric</label><select id="eMetric"><option value="subs">Subscribers</option><option value="views">Views</option></select></div>
+        <div><label>Theme</label><select id="eTheme"><option value="dark">Dark</option><option value="light">Light</option><option value="clear">Transparent (OBS)</option></select></div>
+      </div>
+      <div class="prev" id="ePrev"></div>
+      <label>Browser-source URL (OBS / Streamlabs)</label>
+      <div class="code" id="eUrl"></div>
+      <label>Website embed</label>
+      <div class="code" id="eIframe"></div>
+      <button class="btn pri" id="eCopy">Copy embed code</button>
+      <p class="note" id="eNote">In OBS: Sources → + → Browser → paste the URL, width 520, height 120.</p>
+    </div>
+  </div>
+</main>
+
+<div id="embedRoot"></div>
+
+<footer>
+  <div class="wrap">
+    <b style="color:var(--muted)">CountPulse</b> · by OneClikAI<br>
+    Subscriber counts are estimates. YouTube publicly rounds subscriber counts, so we estimate the live number inside YouTube's rounding range from each channel's recent growth. View counts come straight from the YouTube Data API.<br>
+    Not affiliated with or endorsed by YouTube or Google.
+  </div>
+</footer>
+
+<div class="tabbar">
+  <a data-go="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>Home</a>
+  <a data-go="top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>Top</a>
+  <a data-go="compare"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 4v16M17 4v16M3 8h8M13 16h8"/></svg>Compare</a>
+  <a data-go="embed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>Embed</a>
+</div>
+<div class="toast" id="toast"></div>
+<canvas id="confetti"></canvas>
+<div class="celebrate" id="celebrate"><span id="celebName"></span><b id="celebNum"></b></div>
+
+<script>
+(() => {
+"use strict";
+const TICK_MS = 2000;
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try { const v = localStorage.getItem('cp_'+k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem('cp_'+k, JSON.stringify(v)); } catch {} }
+};
+const params = new URLSearchParams(location.search);
+
+/* ---------------- number formatting ---------------- */
+let FMT = store.get('fmt', 'intl');
+const fmtFull = n => Math.floor(n).toLocaleString(FMT === 'in' ? 'en-IN' : 'en-US');
+function fmtShort(n){
+  n = Math.floor(n);
+  if (FMT === 'in') {
+    if (n >= 1e7) return +(n/1e7).toFixed(n >= 1e9 ? 0 : 2) + ' Cr';
+    if (n >= 1e5) return +(n/1e5).toFixed(2) + ' L';
+    if (n >= 1e3) return +(n/1e3).toFixed(1) + 'K';
+    return String(n);
+  }
+  if (n >= 1e9) return +(n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return +(n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return +(n/1e3).toFixed(1) + 'K';
+  return String(n);
+}
+function fmtDur(sec){
+  if (!isFinite(sec) || sec <= 0) return '—';
+  const d = sec/86400;
+  if (d >= 730) return Math.round(d/365) + ' years';
+  if (d >= 60) return Math.round(d/30.4) + ' months';
+  if (d >= 2) return Math.round(d) + ' days';
+  const h = sec/3600;
+  if (h >= 2) return Math.round(h) + ' hours';
+  return Math.max(1, Math.round(sec/60)) + ' min';
+}
+const signed = (n, f = fmtShort) => (n >= 0 ? '+' : '−') + f(Math.abs(n));
+
+/* ---------------- odometer ---------------- */
+class Odometer {
+  constructor(el){ this.el = el; this.str = null; this.el.classList.add('odo'); }
+  set(value){
+    const s = fmtFull(Math.max(0, value));
+    if (s === this.str) return;
+    const shape = x => x.replace(/\d/g, '0');
+    if (this.str === null || shape(s) !== shape(this.str)) this.build(s);
+    else [...s].forEach((ch, i) => { if (ch >= '0' && ch <= '9' && ch !== this.str[i]) this.cells[i].style.transform = `translateY(${-ch*10}%)`; });
+    this.str = s;
+  }
+  build(s){
+    this.el.classList.add('noanim');
+    this.el.innerHTML = ''; this.cells = [];
+    for (const ch of s) {
+      if (ch >= '0' && ch <= '9') {
+        const c = document.createElement('span'); c.className = 'c';
+        const st = document.createElement('span'); st.className = 's';
+        st.innerHTML = '<span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>';
+        st.style.transform = `translateY(${-ch*10}%)`;
+        c.appendChild(st); this.el.appendChild(c); this.cells.push(st);
+      } else {
+        const sp = document.createElement('span'); sp.className = 'sep'; sp.textContent = ch;
+        this.el.appendChild(sp); this.cells.push(null);
+      }
+    }
+    void this.el.offsetHeight;
+    this.el.classList.remove('noanim');
+  }
+  reset(){ this.str = null; }
+}
+
+/* ---------------- avatars ---------------- */
+function hue(str){ let h = 0; for (const c of str) h = (h*31 + c.charCodeAt(0)) % 360; return h; }
+function avatar(el, ch){
+  el.innerHTML = '';
+  if (ch.thumb) { const img = new Image(); img.src = ch.thumb; img.alt = ''; img.referrerPolicy = 'no-referrer'; img.onerror = () => avatar(el, {...ch, thumb:''}); el.appendChild(img); el.style.background = ''; return; }
+  const h = hue(ch.title || ch.id);
+  el.style.background = `linear-gradient(135deg,hsl(${h} 75% 55%),hsl(${(h+50)%360} 80% 45%))`;
+  el.textContent = (ch.title || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
+}
+
+/* ---------------- data sources ---------------- */
+// Demo channels: approximate, simulated figures for showing the product only.
+const DEMO_SEED = [
+  ['demo-mrbeast','MrBeast','@MrBeast',452_300_000, 1.15, 96_000_000_000, 1700],
+  ['demo-tseries','T-Series','@tseries',306_400_000, 0.29, 322_000_000_000, 2300],
+  ['demo-cocomelon','Cocomelon - Nursery Rhymes','@CoComelon',197_800_000, 0.09, 212_000_000_000, 900],
+  ['demo-setindia','SET India','@setindia',188_200_000, 0.21, 196_000_000_000, 1400],
+  ['demo-vlad','Vlad and Niki','@VladandNiki',142_600_000, 0.12, 118_000_000_000, 700],
+  ['demo-diana','Kids Diana Show','@KidsDianaShow',136_900_000, 0.10, 115_000_000_000, 650],
+  ['demo-zee','Zee Music Company','@zeemusiccompany',122_400_000, 0.16, 74_000_000_000, 820],
+  ['demo-pewdiepie','PewDiePie','@PewDiePie',110_000_000, 0.004, 29_400_000_000, 90],
+  ['demo-aditya','Aditya Music','@AdityaMusic',46_800_000, 0.05, 30_500_000_000, 420],
+];
+function bucketSize(n){ if (n < 1000) return 1; return 10 ** (Math.floor(Math.log10(n)) + 1 - 3); }
+
+const Demo = {
+  live: false,
+  t0: Date.now()/1000,
+  chans: new Map(),
+  init(){
+    for (const [id,title,handle,subs,rate,views,vr] of DEMO_SEED) this.add({id,title,handle,subs,rate,views,vr});
+  },
+  add({id,title,handle,subs,rate,views,vr}){
+    const c = {id,title,handle,thumb:'',baseSubs:subs,rate,baseViews:views,vr,videos:Math.round(300+hue(id)*7),phase:hue(id)};
+    this.chans.set(id, c); return c;
+  },
+  row(c){
+    const now = Date.now()/1000, dt = now - this.t0;
+    // Simulated "true" count: steady drift with a little wobble.
+    const wobble = Math.sin((dt + c.phase) / 23) * c.rate * 6;
+    const truth = c.baseSubs + c.rate * dt + wobble;
+    const b = bucketSize(truth); const api = Math.floor(truth / b) * b;
+    const views = c.baseViews + c.vr * dt * (1 + 0.15*Math.sin((dt + c.phase)/11));
+    return { id:c.id, title:c.title, handle:c.handle, thumb:'', hiddenSubs:false, apiSubs:api, bucket:b,
+      estSubs:truth, subsRate:c.rate, views, viewsRate:c.vr, videos:c.videos, fetchedAt:now, serverTime:now };
+  },
+  async top(){ return [...this.chans.values()].slice(0, DEMO_SEED.length).map(c => this.row(c)).sort((a,b) => b.estSubs - a.estSubs); },
+  async get(ids){ return ids.map(i => this.chans.get(i)).filter(Boolean).map(c => this.row(c)); },
+  async resolve(q){
+    const k = q.trim().toLowerCase().replace(/^@/, '').replace(/.*youtube\.com\/@?/, '');
+    const hit = [...this.chans.values()].find(c => c.title.toLowerCase().includes(k) || c.handle.toLowerCase().slice(1) === k);
+    if (hit) return this.row(hit);
+    // Unknown name → create a plausible simulated channel so the flow can be tried.
+    const h = hue(k), subs = Math.round((50_000 + h * h * 120) );
+    const c = this.add({ id:'demo-' + k.replace(/[^a-z0-9]/g,''), title: q.trim().replace(/^@/,''), handle:'@'+k.replace(/\s+/g,''), subs, rate: subs/4e6, views: subs*180, vr: subs/1.5e4 });
+    return this.row(c);
+  },
+  search(q){ const k = q.trim().toLowerCase(); if (!k) return []; return [...this.chans.values()].filter(c => c.title.toLowerCase().includes(k)).slice(0,5).map(c => this.row(c)); },
+  // Fictional channel that sits just under 1M so the milestone celebration can be seen.
+  milestoneDemo(){
+    let c = this.chans.get('demo-almost');
+    if (!c) c = this.add({ id:'demo-almost', title:'Almost There Gaming', handle:'@almostthere (fictional)', subs:999_000, rate:1.1, views:184_000_000, vr:45 });
+    c.baseSubs = 999_935 - c.rate * (Date.now()/1000 - this.t0);
+    return c.id;
+  },
+  vids: new Map(),
+  vrow(v){
+    const now = Date.now()/1000, dt = now - v.t0;
+    const views = v.views + v.vr * dt * (1 + .2*Math.sin(dt/9));
+    return { id:v.id, title:v.title, channel:v.channel, channelId:'', thumb:'', views, likes: v.likes + v.vr*0.035*dt, comments: v.comments + v.vr*0.002*dt,
+      viewsRate:v.vr, likesRate:v.vr*0.035, commentsRate:v.vr*0.002, fetchedAt:now, serverTime:now };
+  },
+  async video(q){
+    const m = q.match(VIDEO_RE); const id = m ? m[1] : null; if (!id) throw new Error('Paste a YouTube video link');
+    let v = this.vids.get(id);
+    if (!v) { const h = hue(id); v = { id, title:'Demo video ' + id + ' (simulated)', channel:'Demo channel', t0:Date.now()/1000, views: 400_000 + h*h*90, vr: 3 + h/12 };
+      v.likes = v.views*0.035; v.comments = v.views*0.002; this.vids.set(id, v); }
+    return this.vrow(v);
+  },
+  async videos(ids){ return ids.map(i => this.vids.get(i)).filter(Boolean).map(v => this.vrow(v)); }
+};
+const VIDEO_RE = /(?:v=|youtu\.be\/|\/shorts\/|\/live\/|\/embed\/)([\w-]{11})/;
+
+const Live = {
+  live: true,
+  base: params.get('api') || '',
+  async j(path){ const r = await fetch(this.base + path); if (!r.ok) { let m = 'Request failed'; try { m = (await r.json()).detail || m; } catch {} throw new Error(m); } return r.json(); },
+  async top(){ return (await this.j('/api/top')).items; },
+  async get(ids){ return ids.length ? (await this.j('/api/channels?ids=' + encodeURIComponent(ids.join(',')))).items : []; },
+  async resolve(q){ return this.j('/api/resolve?q=' + encodeURIComponent(q)); },
+  async video(q){ return this.j('/api/video?q=' + encodeURIComponent(q)); },
+  async videos(ids){ return ids.length ? (await this.j('/api/videos?ids=' + encodeURIComponent(ids.join(',')))).items : []; },
+  search(){ return []; }
+};
+
+let Src = Demo;
+async function pickSource(){
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 2500);
+    const r = await fetch((params.get('api') || '') + '/api/health', { signal: ctl.signal }); clearTimeout(t);
+    if (r.ok) { const h = await r.json(); if (h.live) { Src = Live; return; } }
+  } catch {}
+  Src = Demo; Demo.init();
+}
+
+/* ---------------- live estimate on the client ---------------- */
+const latest = new Map();   // id -> {row, recvAt}
+const hist = new Map();     // id -> [{t,v}]
+function ingest(rows){ const now = Date.now()/1000; for (const r of rows) latest.set(r.id, { row:r, recvAt:now }); }
+function subsNow(id){
+  const L = latest.get(id); if (!L) return 0;
+  const r = L.row, dt = Date.now()/1000 - L.recvAt;
+  if (r.bucket <= 1) return r.apiSubs;
+  const v = r.estSubs + r.subsRate * dt;
+  return Math.max(r.apiSubs, Math.min(v, r.apiSubs + r.bucket - 1));
+}
+const shownViews = new Map();
+function viewsNow(id){
+  const L = latest.get(id); if (!L) return 0;
+  const r = L.row, v = r.views + r.viewsRate * Math.max(0, Date.now()/1000 - r.fetchedAt + (L.recvAt - r.serverTime));
+  const prev = shownViews.get(id) || 0; const out = Math.max(prev, v); shownViews.set(id, out); return out;
+}
+const vlatest = new Map();
+function ingestVideos(rows){ const now = Date.now()/1000; for (const r of rows) vlatest.set(r.id, { row:r, recvAt:now }); }
+function vNow(id, key){
+  const L = vlatest.get(id); if (!L) return 0;
+  const r = L.row, dt = Math.max(0, Date.now()/1000 - L.recvAt + (r.serverTime - r.fetchedAt));
+  const v = r[key] + (r[key + 'Rate'] || 0) * dt, sk = 'v:' + id + key;
+  const out = Math.max(shownViews.get(sk) || 0, v); shownViews.set(sk, out); return out;
+}
+function track(id){ const v = subsNow(id); const a = hist.get(id) || []; a.push({ t: Date.now(), v }); if (a.length > 180) a.shift(); hist.set(id, a); }
+
+/* ---------------- sparkline ---------------- */
+function spark(canvas, series, colors){
+  const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w) return;
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  const g = canvas.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0,0,w,h);
+  series.forEach((pts, si) => {
+    if (pts.length < 2) return;
+    let lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v)); if (hi - lo < 1) { hi += .5; lo -= .5; }
+    const t0 = pts[0].t, t1 = pts[pts.length-1].t || t0 + 1;
+    const X = t => 4 + (w-8) * (t - t0) / Math.max(1, t1 - t0), Y = v => h - 8 - (h-16) * (v - lo) / (hi - lo);
+    const col = colors[si];
+    const grad = g.createLinearGradient(0,0,0,h); grad.addColorStop(0, col + '55'); grad.addColorStop(1, col + '00');
+    g.beginPath(); pts.forEach((p,i) => i ? g.lineTo(X(p.t), Y(p.v)) : g.moveTo(X(p.t), Y(p.v)));
+    g.lineWidth = 2.2; g.strokeStyle = col; g.lineJoin = 'round'; g.stroke();
+    if (series.length === 1) { g.lineTo(X(t1), h); g.lineTo(X(t0), h); g.closePath(); g.fillStyle = grad; g.fill(); }
+    const lp = pts[pts.length-1]; g.beginPath(); g.arc(X(lp.t), Y(lp.v), 3.5, 0, 7); g.fillStyle = col; g.fill();
+  });
+}
+
+/* ---------------- search widget ---------------- */
+function searchBox(host, onPick, placeholder){
+  host.classList.add('search');
+  host.innerHTML = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input type="text" autocomplete="off" spellcheck="false" placeholder="${placeholder || 'Channel name, @handle or URL'}">
+    <button class="btn pri go">Go</button><div class="card sugg"></div><div class="err"></div>`;
+  const inp = host.querySelector('input'), go = host.querySelector('.go'), sg = host.querySelector('.sugg'), er = host.querySelector('.err');
+  if (host.closest('.slot')) { go.style.display = 'none'; inp.style.paddingRight = '14px'; }
+  const submit = async () => {
+    const q = inp.value.trim(); if (!q) return;
+    er.textContent = ''; go.textContent = '…'; sg.classList.remove('on');
+    try {
+      if (VIDEO_RE.test(q) && !host.closest('.slot')) { const v = await Src.video(q); ingestVideos([v]); inp.value = ''; openVideo(v.id); return; }
+      const row = await Src.resolve(q); ingest([row]); inp.value = ''; onPick(row.id);
+    }
+    catch (e) { er.textContent = e.message || 'Could not find that channel'; }
+    finally { go.textContent = 'Go'; }
+  };
+  go.onclick = submit;
+  inp.onkeydown = e => { if (e.key === 'Enter') submit(); };
+  inp.oninput = () => {
+    const rows = Src.search(inp.value);
+    sg.innerHTML = rows.map(r => `<div class="it" data-id="${r.id}"><div class="av" style="width:32px;height:32px;font-size:12px"></div><div>${esc(r.title)}<div class="muted" style="font-size:12px">${fmtShort(r.estSubs)} subscribers</div></div></div>`).join('');
+    sg.querySelectorAll('.it').forEach((el, i) => { avatar(el.querySelector('.av'), rows[i]); el.onmousedown = e => { e.preventDefault(); ingest([rows[i]]); inp.value=''; sg.classList.remove('on'); onPick(rows[i].id); }; });
+    sg.classList.toggle('on', rows.length > 0);
+  };
+  inp.onblur = () => setTimeout(() => sg.classList.remove('on'), 120);
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------------- state + routing ---------------- */
+const S = { view:'home', cur: params.get('c') || null, a: params.get('a') || null, b: params.get('b') || null, vid: null, topIds: [], sessionStart: new Map(), sort: 'subs', prevN: null };
+const VIEWS = ['home','top','counter','compare','embed','video'];
+let TICK = store.get('speed', TICK_MS), timer = null;
+function startTimer(){ clearInterval(timer); timer = setInterval(tick, TICK); document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === TICK)); }
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { TICK = +b.dataset.speed; store.set('speed', TICK); startTimer(); toast('Updating every ' + TICK/1000 + 's'); });
+
+/* favourites */
+const favKey = () => 'fav_' + (Src.live ? 'live' : 'demo');
+let FAV = [];
+function isFav(id){ return FAV.includes(id); }
+function toggleFav(id){
+  FAV = isFav(id) ? FAV.filter(x => x !== id) : [id, ...FAV];
+  store.set(favKey(), FAV); syncStar(); renderFavs();
+  toast(isFav(id) ? 'Added to favourites' : 'Removed from favourites');
+}
+function syncStar(){ const on = isFav(S.cur); $('#cStar').textContent = on ? '★' : '☆'; $('#cStar').classList.toggle('on', on); }
+function renderFavs(){
+  const rows = FAV.map(id => latest.get(id)?.row).filter(Boolean);
+  $('#favSec').style.display = rows.length ? '' : 'none';
+  if (rows.length) renderLB($('#lbFav'), rows);
+}
+$('#cStar').onclick = () => toggleFav(S.cur);
+
+/* trending sort */
+document.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => {
+  S.sort = b.dataset.sort; document.querySelectorAll('[data-sort]').forEach(x => x.classList.toggle('on', x === b));
+  $('#topNote').textContent = S.sort === 'rate' ? 'Ranked by estimated subscribers gained per day right now.' : 'Ranked by estimated live subscribers. Tap a channel to open its counter.';
+  updateLB($('#lbTop'));
+});
+
+/* focus mode */
+$('#cFocus').onclick = async () => { document.body.classList.add('focus'); odos.cSubs.reset(); try { await document.documentElement.requestFullscreen(); } catch {} tick(true); };
+function exitFocus(){ document.body.classList.remove('focus'); odos.cSubs.reset(); tick(true); }
+$('#focusX').onclick = async () => { exitFocus(); try { if (document.fullscreenElement) await document.exitFullscreen(); } catch {} };
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('focus')) exitFocus(); });
+
+/* confetti + celebration */
+function celebrate(name, value){
+  $('#celebName').textContent = name + ' just hit'; $('#celebNum').textContent = fmtFull(value);
+  $('#celebrate').classList.add('on'); setTimeout(() => $('#celebrate').classList.remove('on'), 4200);
+  const cv = $('#confetti'), g = cv.getContext('2d'), W = cv.width = innerWidth, H = cv.height = innerHeight;
+  const cols = ['#FF4D5E','#FF8A3D','#FFC94D','#2EE6A8','#6C8CFF','#ffffff'];
+  const ps = Array.from({length: 180}, () => ({ x: W/2 + (Math.random()-.5)*W*.3, y: H*.35, vx: (Math.random()-.5)*14, vy: -Math.random()*14 - 4,
+    s: 5 + Math.random()*6, r: Math.random()*6, vr: (Math.random()-.5)*.3, c: cols[Math.floor(Math.random()*cols.length)] }));
+  const t0 = performance.now();
+  (function frame(t){
+    g.clearRect(0,0,W,H);
+    for (const p of ps) { p.vy += .32; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-p.s/2, -p.s/4, p.s, p.s/2); g.restore(); }
+    if (t - t0 < 4000) requestAnimationFrame(frame); else g.clearRect(0,0,W,H);
+  })(t0);
+}
+
+/* video view */
+function openVideo(id){
+  S.vid = id; const r = vlatest.get(id)?.row; if (!r) return;
+  ['vViews','vLikes','vComments'].forEach(k => odos[k].reset());
+  [...shownViews.keys()].filter(k => k.startsWith('v:' + id)).forEach(k => shownViews.delete(k));
+  $('#vTitle').textContent = r.title; $('#vChan').textContent = r.channel;
+  $('#vThumb').innerHTML = r.thumb ? `<img src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer">` : '▶';
+  S.vStart = vNow(id, 'views'); hist.set('v:' + id, []);
+  go('video');
+}
+function updateVideo(){
+  const id = S.vid, L = vlatest.get(id); if (!L) return;
+  const r = L.row, v = vNow(id, 'views'), l = vNow(id, 'likes'), c = vNow(id, 'comments');
+  odos.vViews.set(v); odos.vLikes.set(l); odos.vComments.set(c);
+  $('#vRateMin').textContent = '+' + fmtShort(r.viewsRate * 60);
+  $('#vRateHr').textContent = '+' + fmtShort(r.viewsRate * 3600);
+  $('#vSession').textContent = signed(v - S.vStart, x => fmtFull(x)) + ' since you opened this';
+  $('#vLikeRatio').textContent = v ? (l / v * 100).toFixed(2) + '% of viewers liked' : '';
+  $('#vComRate').textContent = r.commentsRate > 0 ? '≈ +' + fmtShort(r.commentsRate * 3600) + ' / hour' : '';
+  $('#vProj').textContent = r.viewsRate > 0 ? '+' + fmtShort(r.viewsRate * 86400) : '—';
+  const a = hist.get('v:' + id) || []; a.push({ t: Date.now(), v }); if (a.length > 180) a.shift(); hist.set('v:' + id, a);
+  spark($('#vSpark'), [a], ['#6C8CFF']);
+}
+$('#vChange').onclick = () => { go('home'); setTimeout(() => $('#homeSearch input').focus(), 50); };
+function go(v){
+  if (!VIEWS.includes(v)) v = 'home';
+  if (v === 'video' && !S.vid) v = 'home';
+  if (v !== 'counter' && document.body.classList.contains('focus')) exitFocus();
+  S.view = v;
+  VIEWS.forEach(x => $('#v-' + x).classList.toggle('on', x === v));
+  document.querySelectorAll('[data-go]').forEach(a => a.classList.toggle('on', a.dataset.go === v));
+  if (('#' + v) !== location.hash) history.replaceState(null, '', '#' + v);
+  window.scrollTo(0, 0);
+  if (v === 'counter') { if (!S.cur) S.cur = S.topIds[0]; openCounter(S.cur); }
+  if (v === 'compare') renderSlots();
+  if (v === 'embed') renderEmbedBuilder();
+  tick(true);
+}
+document.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); go(a.dataset.go); } });
+window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v !== S.view) go(v); });
+document.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { FMT = b.dataset.fmt; store.set('fmt', FMT); syncFmt(); Object.values(odos).forEach(o => o && o.reset()); lbOdos.forEach(o => o.reset()); tick(true); });
+function syncFmt(){ document.querySelectorAll('[data-fmt]').forEach(b => b.classList.toggle('on', b.dataset.fmt === FMT)); }
+
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1800); }
+async function copy(text){ try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Select the text and copy it'); } }
+
+/* ---------------- views ---------------- */
+const odos = {
+  cSubs: new Odometer($('#cSubs')), cViews: new Odometer($('#cViews')),
+  fA: null, fB: null, fGap: null,
+  sA: null, sB: null, gap: new Odometer($('#gapOdo')), prev: null,
+  vViews: new Odometer($('#vViews')), vLikes: new Odometer($('#vLikes')), vComments: new Odometer($('#vComments'))
+};
+let lbOdos = new Map();
+
+function renderLB(host, rows){
+  host.innerHTML = rows.map((r, i) => `<div class="row" data-id="${r.id}"><div class="rk">${i+1}</div><div class="av"></div>
+    <div style="min-width:0"><div class="nm">${esc(r.title)}</div><div class="sub">${esc(r.handle || '')}</div></div>
+    <div class="r" style="text-align:right"><div class="odo-h"></div><div class="rate"></div></div></div>`).join('');
+  host.querySelectorAll('.row').forEach((el, i) => {
+    avatar(el.querySelector('.av'), rows[i]);
+    const o = new Odometer(el.querySelector('.odo-h')); lbOdos.set(host.id + rows[i].id, o);
+    el.onclick = () => { S.cur = rows[i].id; go('counter'); };
+  });
+}
+function updateLB(host){
+  const ids = [...host.querySelectorAll('.row')].map(el => el.dataset.id);
+  // re-sort if order changed
+  const byRate = host.id === 'lbTop' && S.sort === 'rate';
+  const sorted = [...ids].sort((x, y) => byRate ? latest.get(y).row.subsRate - latest.get(x).row.subsRate : subsNow(y) - subsNow(x));
+  if (sorted.join() !== ids.join()) { renderLB(host, sorted.map(id => latest.get(id).row)); }
+  host.querySelectorAll('.row').forEach(el => {
+    const id = el.dataset.id, o = lbOdos.get(host.id + id), r = latest.get(id)?.row; if (!o || !r) return;
+    o.set(subsNow(id));
+    el.querySelector('.rate').textContent = signed(r.subsRate * 86400) + ' / day';
+  });
+}
+
+function renderFeat(){
+  const [a, b] = S.topIds; if (!a || !b) return;
+  const A = latest.get(a).row, B = latest.get(b).row;
+  $('#feat').innerHTML = `<div class="side"><div class="av md" id="fAv"></div><div class="name">${esc(A.title)}</div><div id="fA"></div></div>
+    <div class="vs"><span class="pill">gap</span><div id="fGap"></div><span class="muted" style="font-size:12px">tap to compare</span></div>
+    <div class="side"><div class="av md" id="fBv"></div><div class="name">${esc(B.title)}</div><div id="fB"></div></div>`;
+  avatar($('#fAv'), A); avatar($('#fBv'), B);
+  odos.fA = new Odometer($('#fA')); odos.fB = new Odometer($('#fB')); odos.fGap = new Odometer($('#fGap'));
+  $('#feat').onclick = () => { S.a = a; S.b = b; go('compare'); };
+}
+
+function openCounter(id){
+  if (!id) return;
+  S.cur = id; odos.cSubs.reset(); odos.cViews.reset(); shownViews.delete(id);
+  const r = latest.get(id)?.row; if (!r) return;
+  avatar($('#cAv'), r);
+  $('#cName').textContent = r.title;
+  $('#cHandle').textContent = [r.handle, r.videos ? fmtFull(r.videos) + ' videos' : ''].filter(Boolean).join(' · ');
+  if (!S.sessionStart.has(id)) S.sessionStart.set(id, subsNow(id));
+  hist.set(id, []); S.prevN = null;
+  $('#cFocusName').textContent = r.title;
+  syncStar();
+}
+function nextMilestones(n){
+  const d = Math.floor(Math.log10(Math.max(n, 10))) + 1;
+  const small = 10 ** Math.max(2, d - 2), big = 10 ** Math.max(3, d - 1);
+  return [Math.floor(n/small)*small + small, Math.floor(n/big)*big + big, small];
+}
+function updateCounter(){
+  const id = S.cur, L = latest.get(id); if (!L) return;
+  const r = L.row, n = subsNow(id);
+  if (r.hiddenSubs) { $('#cSubs').textContent = 'Hidden by channel'; } else odos.cSubs.set(n);
+  odos.cViews.set(viewsNow(id));
+  $('#cRateSec').textContent = '+' + (r.subsRate >= 10 ? Math.round(r.subsRate) : r.subsRate.toFixed(2));
+  $('#cRateDay').textContent = '+' + fmtShort(r.subsRate * 86400);
+  const sess = n - (S.sessionStart.get(id) ?? n);
+  $('#cSession').textContent = signed(sess, x => fmtFull(x)) + ' since you opened this';
+  $('#cViewsRate').textContent = r.viewsRate > 0 ? `≈ ${signed(r.viewsRate * 86400)} views / day` : '';
+  $('#cEstTag').title = r.bucket > 1 ? `YouTube shows ${fmtFull(r.apiSubs)}. The real count is between ${fmtFull(r.apiSubs)} and ${fmtFull(r.apiSubs + r.bucket - 1)}; we estimate where inside that range from recent growth.` : 'Exact count';
+  $('#cEstTag').style.display = r.bucket > 1 ? '' : 'none';
+  const [m1, m2, step] = nextMilestones(n);
+  const pct = 100 - (m1 - n) / step * 100;
+  $('#cMs').textContent = fmtShort(m1);
+  $('#cMsBar').style.width = Math.max(1, Math.min(100, pct)).toFixed(1) + '%';
+  $('#cMsEta').innerHTML = `${fmtFull(m1 - n)} to go · ≈ ${fmtDur((m1 - n) / r.subsRate)}` + (m2 > m1 ? `<br>${fmtShort(m2)} in ≈ ${fmtDur((m2 - n) / r.subsRate)}` : '');
+  $('#cNote').textContent = r.bucket > 1
+    ? `YouTube currently shows ${fmtShort(r.apiSubs)} (exact public value ${fmtFull(r.apiSubs)}). Live number is estimated within ±${fmtShort(r.bucket)}.`
+    : 'This channel is small enough that YouTube shows its exact subscriber count.';
+  track(id); spark($('#cSpark'), [hist.get(id)], ['#FF6A4D']);
+  const P = [['Tomorrow', 86400], ['In 1 week', 604800], ['In 1 month', 2592000], ['In 1 year', 31536000]];
+  $('#cProj').innerHTML = P.map(([l, s]) => `<tr><td>${l}</td><td>${fmtShort(n + r.subsRate * s)}</td><td>+${fmtShort(r.subsRate * s)}</td></tr>`).join('');
+  // Milestone celebration: fire when the live count crosses a round number.
+  if (S.prevN !== null && n > S.prevN) { const [m] = nextMilestones(S.prevN); if (n >= m) celebrate(r.title, m); }
+  S.prevN = n;
+}
+$('#cCompare').onclick = () => { S.a = S.cur; S.b = S.topIds.find(x => x !== S.cur) || null; go('compare'); };
+$('#cEmbed').onclick = () => go('embed');
+$('#cChange').onclick = () => { go('home'); setTimeout(() => $('#homeSearch input').focus(), 50); };
+
+/* compare */
+function renderSlots(){
+  for (const k of ['a','b']) {
+    const host = $('#slot' + k.toUpperCase()), id = S[k];
+    odos['s' + k.toUpperCase()] = null;
+    if (!id || !latest.get(id)) {
+      host.innerHTML = `<div class="muted" style="font-size:14px">Channel ${k.toUpperCase()}</div><div class="sbox" style="width:100%"></div>`;
+      searchBox(host.querySelector('.sbox'), pid => { S[k] = pid; renderSlots(); tick(true); });
+    } else {
+      const r = latest.get(id).row;
+      host.innerHTML = `<div class="av md"></div><div style="font-weight:600">${esc(r.title)}</div><div class="o"></div><div class="muted r" style="font-size:13px"></div><button class="btn" style="padding:6px 12px;font-size:13px">Change</button>`;
+      avatar(host.querySelector('.av'), r);
+      odos['s' + k.toUpperCase()] = new Odometer(host.querySelector('.o'));
+      host.querySelector('button').onclick = () => { S[k] = null; renderSlots(); };
+    }
+  }
+  odos.gap.reset(); S.gapHist = [];
+}
+function updateCompare(){
+  const A = latest.get(S.a)?.row, B = latest.get(S.b)?.row;
+  if (odos.sA && A) { odos.sA.set(subsNow(S.a)); $('#slotA .r').textContent = signed(A.subsRate*86400) + ' / day'; }
+  if (odos.sB && B) { odos.sB.set(subsNow(S.b)); $('#slotB .r').textContent = signed(B.subsRate*86400) + ' / day'; }
+  if (!A || !B) { $('#gapLbl').textContent = 'Pick two channels to compare'; $('#gapOdo').textContent = ''; odos.gap.reset(); $('#gapEta').textContent = ''; return; }
+  const a = subsNow(S.a), b = subsNow(S.b), lead = a >= b ? A : B, trail = a >= b ? B : A;
+  const gap = Math.abs(a - b), gapRate = (a >= b ? 1 : -1) * (A.subsRate - B.subsRate);
+  $('#gapLbl').innerHTML = `<b style="color:var(--text)">${esc(lead.title)}</b> leads by`;
+  odos.gap.set(gap);
+  $('#gapEta').innerHTML = gapRate < 0
+    ? `Gap shrinking ${fmtShort(-gapRate*86400)}/day · <b>${esc(trail.title)}</b> overtakes in ≈ <b>${fmtDur(gap / -gapRate)}</b>`
+    : `Gap growing ${fmtShort(gapRate*86400)}/day · ${esc(lead.title)} is pulling away`;
+  S.gapHist = S.gapHist || []; S.gapHist.push({ t: Date.now(), v: gap }); if (S.gapHist.length > 180) S.gapHist.shift();
+  spark($('#gapSpark'), [S.gapHist], ['#FF8A3D']);
+}
+
+/* embed builder */
+function renderEmbedBuilder(){
+  const sel = $('#eCh'); const ids = [...new Set([S.cur, ...S.topIds].filter(Boolean))];
+  sel.innerHTML = ids.map(id => `<option value="${id}">${esc(latest.get(id)?.row.title || id)}</option>`).join('');
+  sel.value = S.cur || ids[0];
+  [sel, $('#eMetric'), $('#eTheme')].forEach(x => x.onchange = () => { odos.prev = null; updateEmbedBuilder(); });
+  odos.prev = null; updateEmbedBuilder();
+}
+function overlayHTML(r, metric, theme){ return `<div class="ov ${theme}"><div class="av md"></div><div><div class="t">${esc(r.title)} · ${metric === 'views' ? 'views' : 'subscribers'}</div><div class="o"></div></div></div>`; }
+function updateEmbedBuilder(){
+  const id = $('#eCh').value, r = latest.get(id)?.row; if (!r) return;
+  const metric = $('#eMetric').value, theme = $('#eTheme').value;
+  if (!odos.prev) { $('#ePrev').innerHTML = overlayHTML(r, metric, theme); avatar($('#ePrev .av'), r); odos.prev = new Odometer($('#ePrev .o')); }
+  odos.prev.set(metric === 'views' ? viewsNow(id) : subsNow(id));
+  const origin = Src.live ? location.origin + location.pathname : 'https://your-domain.com/';
+  const url = `${origin}?embed=1&c=${encodeURIComponent(id)}&metric=${metric}&theme=${theme}`;
+  if ($('#eUrl').textContent !== url) {
+    $('#eUrl').textContent = url;
+    $('#eIframe').textContent = `<iframe src="${url}" width="520" height="120" frameborder="0" style="border:0;background:transparent" allowtransparency="true"></iframe>`;
+  }
+  $('#eNote').textContent = Src.live ? 'In OBS: Sources → + → Browser → paste the URL, width 520, height 120.' : 'Demo mode: the URL works once CountPulse is deployed on your domain.';
+}
+$('#eCopy').onclick = () => copy($('#eIframe').textContent);
+
+/* embed mode (?embed=1) */
+let embedOdo = null;
+function setupEmbed(){
+  document.body.classList.add('embed');
+  const r = latest.get(S.cur)?.row; if (!r) { $('#embedRoot').textContent = 'Channel not found'; return; }
+  $('#embedRoot').innerHTML = overlayHTML(r, params.get('metric') || 'subs', params.get('theme') || 'dark');
+  avatar($('#embedRoot .av'), r); embedOdo = new Odometer($('#embedRoot .o'));
+}
+
+/* ---------------- main loop ---------------- */
+let busy = false;
+async function tick(renderOnly){
+  if (!renderOnly && !busy) {
+    busy = true;
+    try {
+      const ids = new Set(S.topIds);
+      [S.cur, S.a, S.b, ...FAV].forEach(x => x && ids.add(x));
+      if (embedOdo) { ids.clear(); ids.add(S.cur); }
+      if (S.view === 'video' && !embedOdo) { ids.clear(); ingestVideos(await Src.videos([S.vid])); }
+      if (ids.size) ingest(await Src.get([...ids]));
+    } catch (e) { console.warn(e); }
+    busy = false;
+  }
+  if (embedOdo) { const m = params.get('metric'); embedOdo.set(m === 'views' ? viewsNow(S.cur) : subsNow(S.cur)); return; }
+  if (S.view === 'video') updateVideo();
+  if (S.view === 'home') {
+    updateLB($('#lbHome')); if (FAV.length) updateLB($('#lbFav'));
+    const [a, b] = S.topIds;
+    if (odos.fA && a && b) { const va = subsNow(a), vb = subsNow(b); odos.fA.set(va); odos.fB.set(vb); odos.fGap.set(Math.abs(va - vb)); }
+  }
+  if (S.view === 'top') updateLB($('#lbTop'));
+  if (S.view === 'counter') updateCounter();
+  if (S.view === 'compare') updateCompare();
+  if (S.view === 'embed') updateEmbedBuilder();
+}
+
+async function boot(){
+  syncFmt();
+  await pickSource();
+  $('#banner').style.display = Src.live ? 'none' : '';
+  $('#demoHint').style.display = Src.live ? 'none' : '';
+  $('#msDemo').onclick = () => { const id = Demo.milestoneDemo(); Demo.get([id]).then(ingest).then(() => { S.cur = id; go('counter'); }); };
+  if (params.get('embed') === '1' && S.cur) {
+    if (Src.live) ingest(await Src.get([S.cur]).catch(() => []));
+    else if (!Demo.chans.has(S.cur)) S.cur = DEMO_SEED[0][0];
+    if (!Src.live) ingest(await Src.get([S.cur]));
+    setupEmbed(); tick(true); startTimer(); return;
+  }
+  FAV = store.get(favKey(), []);
+  try { const top = await Src.top(); ingest(top); S.topIds = top.map(r => r.id); } catch (e) { console.warn(e); }
+  const extra = [S.cur, S.a, S.b, ...FAV].filter(x => x && !latest.has(x));
+  if (extra.length) try { ingest(await Src.get(extra)); } catch {}
+  FAV = FAV.filter(id => latest.has(id));
+  renderFavs();
+  renderLB($('#lbHome'), S.topIds.slice(0, 6).map(id => latest.get(id).row));
+  renderLB($('#lbTop'), S.topIds.map(id => latest.get(id).row));
+  renderFeat();
+  searchBox($('#homeSearch'), id => { S.cur = id; go('counter'); });
+  const start = params.get('a') ? 'compare' : params.get('c') ? 'counter' : (location.hash.slice(1) || 'home');
+  go(start);
+  startTimer();
+  window.addEventListener('resize', () => tick(true));
+}
+boot();
+})();
+</script>
+</body>
+</html>
