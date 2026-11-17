@@ -443,34 +443,49 @@ const signed = (n, f = fmtShort) => (n >= 0 ? '+' : '−') + f(Math.abs(n));
 
 /* ---------------- odometer ---------------- */
 class Odometer {
-  constructor(el){ this.el = el; this.str = null; this.el.classList.add('odo'); }
+  // Each digit is a strip 0-9,0-9. Rising numbers roll upward (9 wraps forward into 0),
+  // falling numbers roll downward (0 wraps back into 9), like livecounts.
+  constructor(el){ this.el = el; this.str = null; this.val = null; this.el.classList.add('odo'); }
   set(value){
-    const s = fmtFull(Math.max(0, value));
+    value = Math.max(0, Math.floor(value));
+    const s = fmtFull(value);
+    const up = this.val === null || value >= this.val;
+    this.val = value;
     if (s === this.str) return;
     const shape = x => x.replace(/\d/g, '0');
     if (this.str === null || shape(s) !== shape(this.str)) this.build(s);
-    else [...s].forEach((ch, i) => { if (ch >= '0' && ch <= '9' && ch !== this.str[i]) this.cells[i].style.transform = `translateY(${-ch*10}%)`; });
+    else [...s].forEach((ch, i) => { if (ch >= '0' && ch <= '9' && ch !== this.str[i]) this.roll(this.cells[i], +ch, +this.str[i], up); });
     this.str = s;
   }
+  pos(st, k, anim){
+    if (!anim) { st.style.transition = 'none'; st.style.transform = `translateY(${-k*5}%)`; void st.offsetHeight; st.style.transition = ''; }
+    else st.style.transform = `translateY(${-k*5}%)`;
+    st._k = k;
+  }
+  roll(st, d, old, up){
+    const token = (st._t = (st._t || 0) + 1);
+    if (st._k >= 10) this.pos(st, st._k - 10, false);          // finish any pending wrap first
+    let target = d;
+    if (up && d < old) target = d + 10;                          // 9 -> 0 rolls forward
+    if (!up && d > old) this.pos(st, old + 10, false);            // 0 -> 9 rolls backward
+    this.pos(st, target, true);
+    if (target >= 10) setTimeout(() => { if (st._t === token) this.pos(st, target - 10, false); }, 1500);
+  }
   build(s){
-    this.el.classList.add('noanim');
     this.el.innerHTML = ''; this.cells = [];
+    const strip = '<span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>';
     for (const ch of s) {
       if (ch >= '0' && ch <= '9') {
         const c = document.createElement('span'); c.className = 'c';
-        const st = document.createElement('span'); st.className = 's';
-        st.innerHTML = '<span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>';
-        st.style.transform = `translateY(${-ch*10}%)`;
-        c.appendChild(st); this.el.appendChild(c); this.cells.push(st);
+        const st = document.createElement('span'); st.className = 's'; st.innerHTML = strip + strip;
+        c.appendChild(st); this.el.appendChild(c); this.cells.push(st); this.pos(st, +ch, false);
       } else {
         const sp = document.createElement('span'); sp.className = 'sep'; sp.textContent = ch;
         this.el.appendChild(sp); this.cells.push(null);
       }
     }
-    void this.el.offsetHeight;
-    this.el.classList.remove('noanim');
   }
-  reset(){ this.str = null; }
+  reset(){ this.str = null; this.val = null; }
 }
 
 /* ---------------- avatars ---------------- */

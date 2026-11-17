@@ -63,6 +63,32 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 # ----------------------------------------------------------------------------
 # Estimation helpers
 # ----------------------------------------------------------------------------
+def parse_ts(s: str) -> float:
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
+
+def lifetime_rate(total: float, published: float) -> float:
+    """Average growth per second since publish: a starting guess before we observe real movement."""
+    age = time.time() - published
+    return total / age if published and age > 60 else 0.0
+
+
+def observed_rate(hist, idx: int, window: float):
+    """Rate between the first sample and the last *change* in the window (YouTube updates in steps)."""
+    h = [p for p in hist if p[0] >= time.time() - window]
+    if len(h) < 2:
+        return None
+    first = h[0]
+    last = next((p for p in reversed(h) if p[idx] != first[idx]), None)
+    if last is None or last[0] <= first[0]:
+        return None
+    return max(0.0, (last[idx] - first[idx]) / (last[0] - first[0]))
+
+
 def bucket_size(api_subs: int) -> int:
     """Size of YouTube's rounding step: 3 significant figures above 1,000."""
     if api_subs < 1000:
@@ -82,6 +108,7 @@ class Channel:
     views: int = 0
     videos: int = 0
     hidden_subs: bool = False
+    published: float = 0.0
     fetched_at: float = 0.0
     last_seen: float = field(default_factory=time.time)
     # estimation state
@@ -92,10 +119,8 @@ class Channel:
 
     # --- rates -------------------------------------------------------------
     def views_rate(self) -> float:
-        h = [p for p in self.view_hist if p[0] >= time.time() - HISTORY_SECONDS]
-        if len(h) >= 2 and h[-1][1] > h[0][1] and h[-1][0] > h[0][0]:
-            return (h[-1][1] - h[0][1]) / (h[-1][0] - h[0][0])
-        return 0.0
+        r = observed_rate(self.view_hist, 1, HISTORY_SECONDS)
+        return r if r else lifetime_rate(self.views, self.published)
 
     def subs_rate(self) -> float:
         # Best signal: two observed bucket crossings.
@@ -107,7 +132,7 @@ class Channel:
         vr = self.views_rate()
         if vr > 0 and self.views > 0:
             return vr * (self.api_subs / self.views)
-        return 0.0
+        return lifetime_rate(self.api_subs, self.published)
 
     # --- update from a fresh API row ----------------------------------------
     def ingest(self, subs: int, views: int, videos: int, now: float) -> None:
@@ -162,16 +187,18 @@ class Video:
     views: int = 0
     likes: int = 0
     comments: int = 0
+    published: float = 0.0
     fetched_at: float = 0.0
     last_seen: float = field(default_factory=time.time)
     hist: deque = field(default_factory=lambda: deque(maxlen=400))  # (t, views, likes, comments)
 
     def rates(self) -> tuple[float, float, float]:
-        h = [p for p in self.hist if p[0] >= time.time() - 3600]
-        if len(h) < 2 or h[-1][0] <= h[0][0]:
-            return 0.0, 0.0, 0.0
-        dt = h[-1][0] - h[0][0]
-        return tuple(max(0.0, (h[-1][i] - h[0][i]) / dt) for i in (1, 2, 3))  # type: ignore
+        totals = (self.views, self.likes, self.comments)
+        out = []
+        for i in (1, 2, 3):
+            r = observed_rate(self.hist, i, 3600)
+            out.append(r if r else lifetime_rate(totals[i - 1], self.published))
+        return tuple(out)  # type: ignore
 
     def to_json(self, now: float) -> dict:
         vr, lr, cr = self.rates()
@@ -218,6 +245,7 @@ class Store:
                 ch.title = sn.get("title", ch.title)
                 ch.handle = sn.get("customUrl", ch.handle)
                 ch.country = sn.get("country", ch.country)
+                ch.published = parse_ts(sn.get("publishedAt", "")) or ch.published
                 ch.thumb = (sn.get("thumbnails", {}).get("medium") or sn.get("thumbnails", {}).get("default") or {}).get("url", ch.thumb)
                 ch.hidden_subs = bool(st.get("hiddenSubscriberCount", False))
                 ch.ingest(int(st.get("subscriberCount", 0)), int(st.get("viewCount", 0)), int(st.get("videoCount", 0)), now)
@@ -230,6 +258,7 @@ class Store:
                 v = self.videos.setdefault(item["id"], Video(id=item["id"]))
                 sn, st = item.get("snippet", {}), item.get("statistics", {})
                 v.title, v.channel, v.channel_id = sn.get("title", ""), sn.get("channelTitle", ""), sn.get("channelId", "")
+                v.published = parse_ts(sn.get("publishedAt", "")) or v.published
                 v.thumb = (sn.get("thumbnails", {}).get("medium") or {}).get("url", v.thumb)
                 v.views, v.likes, v.comments = int(st.get("viewCount", 0)), int(st.get("likeCount", 0)), int(st.get("commentCount", 0))
                 v.hist.append((now, v.views, v.likes, v.comments))

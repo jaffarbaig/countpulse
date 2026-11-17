@@ -45,6 +45,8 @@ git clone https://github.com/jaffarbaig/countpulse && bash countpulse/deploy.sh
 ```
 It prints a 6-digit setup code and installs in the background. After 3–5 minutes, open `https://<domain>/setup`, enter the code and paste your YouTube API key. Progress: `tail /root/deploy.log`.
 
+To update later: `git -C countpulse pull && bash countpulse/update.sh` (keeps key, nginx site and HTTPS).
+
 Other hosts: any host that runs Python works: Render, Railway, AWS App Runner, a GCP Cloud Run container, or an EC2/Lightsail VM.
 ```bash
 docker build -t countpulse . && docker run -p 8000:8000 -e YT_API_KEY=xxx countpulse
