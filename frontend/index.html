@@ -307,6 +307,7 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:26px 0 40px;co
 <!-- COUNTER -->
 <main class="view" id="v-counter">
   <div class="wrap section">
+    <div id="cSearch" style="margin-bottom:14px"></div>
     <div class="card chead">
       <div class="av lg" id="cAv"></div>
       <div style="min-width:0">
@@ -538,7 +539,9 @@ function avatar(el, ch){
   if (ch.thumb) { const img = new Image(); img.src = ch.thumb; img.alt = ''; img.referrerPolicy = 'no-referrer'; img.onerror = () => avatar(el, {...ch, thumb:''}); el.appendChild(img); el.style.background = ''; return; }
   const h = hue(ch.title || ch.id);
   el.style.background = `linear-gradient(135deg,hsl(${h} 75% 55%),hsl(${(h+50)%360} 80% 45%))`;
-  el.textContent = (ch.title || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
+  const ini = (ch.title || '').trim().split(/\s+/).filter(Boolean).slice(0,2).map(w => [...w][0]).join('').toUpperCase();
+  if (ini) el.textContent = ini;
+  else el.innerHTML = '<svg viewBox="0 0 24 24" width="55%" height="55%" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>';
 }
 
 /* ---------------- data sources ---------------- */
@@ -797,6 +800,7 @@ $('#vChange').onclick = () => { go('home'); setTimeout(() => $('#homeSearch inpu
 function go(v){
   if (!VIEWS.includes(v)) v = 'home';
   if (v === 'video' && !S.vid) v = 'home';
+  if (v === 'counter' && !S.cur) S.cur = S.topIds[0] || null;
   setMenu(false);
   if (v !== 'counter' && document.body.classList.contains('focus')) exitFocus();
   S.view = v;
@@ -804,7 +808,11 @@ function go(v){
   document.querySelectorAll('[data-go]').forEach(a => a.classList.toggle('on', a.dataset.go === v));
   try { history.replaceState(null, '', urlFor(v)); } catch {}
   window.scrollTo(0, 0);
-  if (v === 'counter') { if (!S.cur) S.cur = S.topIds[0]; openCounter(S.cur); }
+  if (v === 'counter') {
+    if (!S.cur) S.cur = S.topIds[0];
+    if (!S.cur) { setTimeout(() => go('home'), 0); return; }
+    openCounter(S.cur);
+  }
   if (v === 'compare') renderSlots();
   if (v === 'embed') renderEmbedBuilder();
   tick(true);
@@ -845,9 +853,11 @@ $('#mCounters').onclick = () => { $('#mCounters').classList.toggle('open'); $('#
 document.querySelectorAll('#menu [data-act]').forEach(a => a.onclick = e => {
   e.preventDefault(); setMenu(false);
   const k = a.dataset.act;
-  if (k === 'subs' || k === 'views') {
+  if (k === 'subs') go('counter');           // opens last channel viewed, or the #1 channel
+  else if (k === 'views' && S.vid) go('video');
+  else if (k === 'views') {
     go('home');
-    setTimeout(() => { const i = $('#homeSearch input'); i.placeholder = k === 'views' ? 'Paste a YouTube video link' : 'Channel name, @handle or URL'; i.focus(); }, 80);
+    setTimeout(() => { const i = $('#homeSearch input'); i.placeholder = 'Paste a YouTube video link'; i.focus(); }, 80);
   } else go(k);
 });
 
@@ -897,7 +907,8 @@ function renderFeat(){
 function openCounter(id){
   if (!id) return;
   S.cur = id; odos.cSubs.reset(); odos.cViews.reset(); shownViews.delete(id);
-  const r = latest.get(id)?.row; if (!r) return;
+  const r = latest.get(id)?.row;
+  if (!r) { Src.get([id]).then(rows => { ingest(rows); if (latest.has(id) && S.cur === id) { openCounter(id); tick(true); } }).catch(() => {}); return; }
   avatar($('#cAv'), r);
   $('#cName').textContent = r.title;
   $('#cHandle').textContent = [r.handle, r.videos ? fmtFull(r.videos) + ' videos' : ''].filter(Boolean).join(' · ');
@@ -940,7 +951,7 @@ function updateCounter(){
 }
 $('#cCompare').onclick = () => { S.a = S.cur; S.b = S.topIds.find(x => x !== S.cur) || null; go('compare'); };
 $('#cEmbed').onclick = () => go('embed');
-$('#cChange').onclick = () => { go('home'); setTimeout(() => $('#homeSearch input').focus(), 50); };
+$('#cChange').onclick = () => { window.scrollTo(0, 0); $('#cSearch input').focus(); };
 
 /* compare */
 function renderSlots(){
@@ -1059,6 +1070,7 @@ async function boot(){
   renderLB($('#lbTop'), S.topIds.map(id => latest.get(id).row));
   renderFeat();
   searchBox($('#homeSearch'), id => { S.cur = id; go('counter'); });
+  searchBox($('#cSearch'), id => { S.cur = id; go('counter'); }, 'Search another channel or paste a link');
   const P = location.pathname.split('/').filter(Boolean).map(decodeURIComponent);
   let opened = false;
   try {
