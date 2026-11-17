@@ -8,6 +8,17 @@ set -euo pipefail
 REPO="${REPO:-https://github.com/jaffarbaig/countpulse.git}"
 DIR=/opt/countpulse
 
+# Safety check: don't fight an existing web server for ports 80/443.
+if ss -tlnp | grep -qE ':(80|443)\s'; then
+  if ! (command -v docker >/dev/null && docker ps --format '{{.Names}}' | grep -q 'countpulse-caddy'); then
+    echo "STOPPED: ports 80/443 are already used by another program:"
+    ss -tlnp | grep -E ':(80|443)\s'
+    echo "Nothing was changed. Send a screenshot of this to Claude."
+    exit 1
+  fi
+fi
+
+export DEBIAN_FRONTEND=noninteractive
 apt-get update -y && apt-get install -y git curl
 command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
 
