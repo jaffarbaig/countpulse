@@ -375,6 +375,19 @@ footer{border-top:1px solid var(--border);margin-top:40px;padding:26px 0 40px;co
       <div id="vViews"></div>
       <div class="meta"><span><b id="vRateMin">+0</b> / min</span><span><b id="vRateHr">+0</b> / hour</span><span id="vSession">+0 since you opened this</span></div>
     </div>
+    <div class="card stat" id="vChCard" style="margin-top:14px;display:none">
+      <div class="lbl" style="display:flex;gap:10px;align-items:center"><span class="dot"></span> Channel subscribers <span class="est" title="Estimated live count for the whole channel">estimated</span></div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="av md" id="vChAv"></div>
+        <div style="min-width:0">
+          <div id="vChName" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+          <div id="vChSubs" style="font-size:clamp(24px,6vw,34px);margin-top:4px"></div>
+        </div>
+      </div>
+      <div class="small" id="vChMeta" style="margin-top:10px"></div>
+      <p class="note">Whole-channel growth while you watch, not only from this video. YouTube shows per-video subscriber numbers only to the channel owner.</p>
+      <button class="btn" id="vChOpen" style="margin-top:10px">Open channel counter</button>
+    </div>
     <div class="grid3">
       <div class="card stat"><div class="lbl">Likes</div><div id="vLikes"></div><div class="small" id="vLikeRatio"></div></div>
       <div class="card stat"><div class="lbl">Comments</div><div id="vComments"></div><div class="small" id="vComRate"></div></div>
@@ -603,13 +616,14 @@ const Demo = {
   vrow(v){
     const now = Date.now()/1000, dt = now - v.t0;
     const views = v.views + v.vr * dt * (1 + .2*Math.sin(dt/9));
-    return { id:v.id, title:v.title, channel:v.channel, channelId:'', thumb:'', views, likes: v.likes + v.vr*0.035*dt, comments: v.comments + v.vr*0.002*dt,
+    return { id:v.id, title:v.title, channel:v.channel, channelId:v.channelId || '', thumb:'', views, likes: v.likes + v.vr*0.035*dt, comments: v.comments + v.vr*0.002*dt,
       viewsRate:v.vr, likesRate:v.vr*0.035, commentsRate:v.vr*0.002, fetchedAt:now, serverTime:now };
   },
   async video(q){
     const m = q.match(VIDEO_RE); const id = m ? m[1] : null; if (!id) throw new Error('Paste a YouTube video link');
     let v = this.vids.get(id);
-    if (!v) { const h = hue(id); v = { id, title:'Demo video ' + id + ' (simulated)', channel:'Demo channel', t0:Date.now()/1000, views: 400_000 + h*h*90, vr: 3 + h/12 };
+    if (!v) { const h = hue(id), seed = DEMO_SEED[h % DEMO_SEED.length];
+      v = { id, title:'Demo video ' + id + ' (simulated)', channel: seed[1], channelId: seed[0], t0:Date.now()/1000, views: 400_000 + h*h*90, vr: 3 + h/12 };
       v.likes = v.views*0.035; v.comments = v.views*0.002; this.vids.set(id, v); }
     return this.vrow(v);
   },
@@ -778,6 +792,8 @@ function openVideo(id){
   $('#vTitle').textContent = r.title; $('#vChan').textContent = r.channel;
   $('#vThumb').innerHTML = r.thumb ? `<img src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer">` : '▶';
   S.vStart = vNow(id, 'views'); hist.set('v:' + id, []);
+  S.vChStart = null; S.vChShown = null; odos.vChSubs.reset(); $('#vChCard').style.display = 'none';
+  if (r.channelId && !latest.has(r.channelId)) Src.get([r.channelId]).then(rows => { ingest(rows); tick(true); }).catch(() => {});
   go('video');
 }
 function updateVideo(){
@@ -790,12 +806,23 @@ function updateVideo(){
   $('#vLikeRatio').textContent = v ? (l / v * 100).toFixed(2) + '% of viewers liked' : '';
   $('#vComRate').textContent = r.commentsRate > 0 ? '≈ +' + fmtShort(r.commentsRate * 3600) + ' / hour' : '';
   $('#vProj').textContent = r.viewsRate > 0 ? '+' + fmtShort(r.viewsRate * 86400) : '—';
+  const cid = r.channelId, C = cid && latest.get(cid)?.row;
+  if (C) {
+    if (S.vChShown !== cid) { avatar($('#vChAv'), C); $('#vChName').textContent = C.title; S.vChShown = cid; $('#vChCard').style.display = ''; }
+    if (C.hiddenSubs) { $('#vChSubs').textContent = 'Hidden by channel'; $('#vChMeta').textContent = ''; }
+    else {
+      const n = subsNow(cid); if (S.vChStart === null) S.vChStart = n;
+      odos.vChSubs.set(n);
+      $('#vChMeta').innerHTML = `<b style="color:var(--up)">${signed(n - S.vChStart, x => fmtFull(x))}</b> since you opened this · ≈ ${signed(C.subsRate * 86400)} / day`;
+    }
+  }
   const a = hist.get('v:' + id) || []; a.push({ t: Date.now(), v }); if (a.length > 180) a.shift(); hist.set('v:' + id, a);
   spark($('#vSpark'), [a], ['#6C8CFF']);
 }
 $('#vShare').onclick = () => share(($('#vTitle').textContent || 'Video') + ' - live views');
 $('#cShare').onclick = () => share(($('#cName').textContent || 'Channel') + ' - live subscriber count');
 $('#gShare').onclick = () => share('Live subscriber battle');
+$('#vChOpen').onclick = () => { const c = vlatest.get(S.vid)?.row.channelId; if (c) { S.cur = c; go('counter'); } };
 $('#vChange').onclick = () => { go('home'); setTimeout(() => $('#homeSearch input').focus(), 50); };
 function go(v){
   if (!VIEWS.includes(v)) v = 'home';
@@ -866,7 +893,7 @@ const odos = {
   cSubs: new Odometer($('#cSubs')), cViews: new Odometer($('#cViews')),
   fA: null, fB: null, fGap: null,
   sA: null, sB: null, gap: new Odometer($('#gapOdo')), prev: null,
-  vViews: new Odometer($('#vViews')), vLikes: new Odometer($('#vLikes')), vComments: new Odometer($('#vComments'))
+  vViews: new Odometer($('#vViews')), vChSubs: new Odometer($('#vChSubs')), vLikes: new Odometer($('#vLikes')), vComments: new Odometer($('#vComments'))
 };
 let lbOdos = new Map();
 
@@ -1030,7 +1057,10 @@ async function tick(renderOnly){
       const ids = new Set(S.topIds);
       [S.cur, S.a, S.b, ...FAV].forEach(x => x && ids.add(x));
       if (embedOdo) { ids.clear(); ids.add(S.cur); }
-      if (S.view === 'video' && !embedOdo) { ids.clear(); ingestVideos(await Src.videos([S.vid])); }
+      if (S.view === 'video' && !embedOdo) {
+        ids.clear(); ingestVideos(await Src.videos([S.vid]));
+        const c = vlatest.get(S.vid)?.row.channelId; if (c) ids.add(c);
+      }
       if (ids.size) ingest(await Src.get([...ids]));
     } catch (e) { console.warn(e); }
     busy = false;
